@@ -1,0 +1,56 @@
+# Vector Clock Message Sending and Receiving Implementation Plan
+
+## Goal
+Implement the core messaging logic ensuring causal ordering. The [Server](file:///Users/jannikkhan/Library/CloudStorage/GoogleDrive-jannikkhan@gmail.com/Meine%20Ablage/Master/Uni_Stuttgart/WiSe25_26/Distributed_System_Project/DistributedSystems_LiveChat/src/server/server_node.py#24-60) manages causal barriers per [Room](file:///Users/jannikkhan/Library/CloudStorage/GoogleDrive-jannikkhan@gmail.com/Meine%20Ablage/Master/Uni_Stuttgart/WiSe25_26/Distributed_System_Project/DistributedSystems_LiveChat/src/domain/models.py#109-125).
+
+## User Review Required
+> [!NOTE]
+> **Feedback Incorporated**:
+> 1.  `ServerNode.process_message` will use a **match/case** (or switch-like) structure.
+> 2.  [VectorClock](file:///Users/jannikkhan/Library/CloudStorage/GoogleDrive-jannikkhan@gmail.com/Meine%20Ablage/Master/Uni_Stuttgart/WiSe25_26/Distributed_System_Project/DistributedSystems_LiveChat/src/domain/models.py#21-83) and `hold_back_queue` are now aggregated into the **[Room](file:///Users/jannikkhan/Library/CloudStorage/GoogleDrive-jannikkhan@gmail.com/Meine%20Ablage/Master/Uni_Stuttgart/WiSe25_26/Distributed_System_Project/DistributedSystems_LiveChat/src/domain/models.py#109-125)** class.
+> 3.  [CausalMulticastHandler](file:///Users/jannikkhan/Library/CloudStorage/GoogleDrive-jannikkhan@gmail.com/Meine%20Ablage/Master/Uni_Stuttgart/WiSe25_26/Distributed_System_Project/DistributedSystems_LiveChat/src/server/multicast.py#4-20) will operate on the logic but store state in the [Room](file:///Users/jannikkhan/Library/CloudStorage/GoogleDrive-jannikkhan@gmail.com/Meine%20Ablage/Master/Uni_Stuttgart/WiSe25_26/Distributed_System_Project/DistributedSystems_LiveChat/src/domain/models.py#109-125).
+
+## Proposed Changes
+
+### Domain
+#### [MODIFY] [models.py](file:///Users/jannikkhan/Library/CloudStorage/GoogleDrive-jannikkhan@gmail.com/Meine Ablage/Master/Uni_Stuttgart/WiSe25_26/Distributed_System_Project/DistributedSystems_LiveChat/src/domain/models.py)
+*   **Class**: [Room](file:///Users/jannikkhan/Library/CloudStorage/GoogleDrive-jannikkhan@gmail.com/Meine%20Ablage/Master/Uni_Stuttgart/WiSe25_26/Distributed_System_Project/DistributedSystems_LiveChat/src/domain/models.py#109-125)
+    *   Add `vector_clock: VectorClock = field(default_factory=VectorClock)`
+    *   Add `hold_back_queue: List[Message] = field(default_factory=list)`
+
+### Client Side
+#### [MODIFY] [chat_client.py](file:///Users/jannikkhan/Library/CloudStorage/GoogleDrive-jannikkhan@gmail.com/Meine Ablage/Master/Uni_Stuttgart/WiSe25_26/Distributed_System_Project/DistributedSystems_LiveChat/src/client/chat_client.py)
+*   **Method**: [send_message(content)](file:///Users/jannikkhan/Library/CloudStorage/GoogleDrive-jannikkhan@gmail.com/Meine%20Ablage/Master/Uni_Stuttgart/WiSe25_26/Distributed_System_Project/DistributedSystems_LiveChat/src/client/chat_client.py#26-29)
+    1.  Increment `client_clock` for `self.client_id`.
+    2.  Create [Message](file:///Users/jannikkhan/Library/CloudStorage/GoogleDrive-jannikkhan@gmail.com/Meine%20Ablage/Master/Uni_Stuttgart/WiSe25_26/Distributed_System_Project/DistributedSystems_LiveChat/src/domain/models.py#84-108) with a **copy** of `client_clock`.
+    3.  Serialize and send.
+
+### Server Side
+#### [MODIFY] [server_node.py](file:///Users/jannikkhan/Library/CloudStorage/GoogleDrive-jannikkhan@gmail.com/Meine Ablage/Master/Uni_Stuttgart/WiSe25_26/Distributed_System_Project/DistributedSystems_LiveChat/src/server/server_node.py)
+*   **Method**: [process_message(msg)](file:///Users/jannikkhan/Library/CloudStorage/GoogleDrive-jannikkhan@gmail.com/Meine%20Ablage/Master/Uni_Stuttgart/WiSe25_26/Distributed_System_Project/DistributedSystems_LiveChat/src/server/server_node.py#57-60)
+    *   Use `match msg.type`:
+        *   `CHAT`: call `self.multicast_handler.handle_chat_message(msg, self.managed_rooms[msg.room_id])`
+        *   `DISCOVERY`: ...
+        *   `HEARTBEAT`: ...
+
+#### [MODIFY] [multicast.py](file:///Users/jannikkhan/Library/CloudStorage/GoogleDrive-jannikkhan@gmail.com/Meine Ablage/Master/Uni_Stuttgart/WiSe25_26/Distributed_System_Project/DistributedSystems_LiveChat/src/server/multicast.py)
+*   **Method**: `handle_chat_message(msg, room)`
+    1.  Check `room.vector_clock.is_causally_ready(msg.vector_clock, msg.sender_id)`.
+    2.  **If Ready**:
+        *   Merge `msg.vector_clock` into `room.vector_clock`.
+        *   Multicast to `room.client_ids`.
+        *   *Recursively* check `room.hold_back_queue` for newly ready messages.
+    3.  **If Not Ready**:
+        *   Append `msg` to `room.hold_back_queue`.
+
+## Verification Plan
+
+### Automated Tests
+*   **Unit Test**: `tests/unit/test_message_flow.py`
+    *   Verify [Room](file:///Users/jannikkhan/Library/CloudStorage/GoogleDrive-jannikkhan@gmail.com/Meine%20Ablage/Master/Uni_Stuttgart/WiSe25_26/Distributed_System_Project/DistributedSystems_LiveChat/src/domain/models.py#109-125) holds the state.
+    *   Verify [ServerNode](file:///Users/jannikkhan/Library/CloudStorage/GoogleDrive-jannikkhan@gmail.com/Meine%20Ablage/Master/Uni_Stuttgart/WiSe25_26/Distributed_System_Project/DistributedSystems_LiveChat/src/server/server_node.py#24-60) dispatch logic.
+    *   Verify Causal Holdback in [Room](file:///Users/jannikkhan/Library/CloudStorage/GoogleDrive-jannikkhan@gmail.com/Meine%20Ablage/Master/Uni_Stuttgart/WiSe25_26/Distributed_System_Project/DistributedSystems_LiveChat/src/domain/models.py#109-125).
+
+```bash
+python3 -m unittest tests/unit/test_message_flow.py
+```

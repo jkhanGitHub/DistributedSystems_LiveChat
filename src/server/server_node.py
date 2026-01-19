@@ -54,6 +54,20 @@ class ServerNode:
         # Skeleton implementation
         pass
 
+    from ..domain.models import MessageType
+
     def process_message(self, msg: Message):
-        # Skeleton implementation
-        pass
+        match msg.type:
+            case MessageType.CHAT:
+                if msg.room_id in self.managed_rooms:
+                    room = self.managed_rooms[msg.room_id]
+                    self.multicast_handler.handle_chat_message(msg, room)
+                else:
+                    print(f"[Server] Error: Room {msg.room_id} not found.")
+            case MessageType.DISCOVERY:
+                self.handle_discovery()
+            case MessageType.ELECTION:
+                # self.election_module.handle_election(msg)
+                pass
+            case _:
+                print(f"[Server] Unknown message type: {msg.type}")

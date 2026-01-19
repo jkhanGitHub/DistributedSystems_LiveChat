@@ -12,11 +12,17 @@ class MessageType(Enum):
     SYNC = "SYNC"
     METADATA_UPDATE = "METADATA_UPDATE"
 
+
+NodeId = str
+
+def generate_node_id() -> NodeId:
+    return str(uuid.uuid4())
+
 @dataclass
 class VectorClock:
-    timestamps: Dict[str, int] = field(default_factory=dict)
+    timestamps: Dict[NodeId, int] = field(default_factory=dict)
 
-    def increment(self, node_id: str):
+    def increment(self, node_id: NodeId):
         self.timestamps[node_id] = self.timestamps.get(node_id, 0) + 1
 
     def merge(self, other: 'VectorClock'):
@@ -26,19 +32,53 @@ class VectorClock:
     def compare(self, other: 'VectorClock') -> int:
         """
         Returns:
-            -1 if self < other
-             1 if self > other
-             0 if concurrent or equal (simplified for now, usually needs more states for concurrent)
-             Note: Strict vector clock comparison usually returns 'concurrent' as a separate state.
-             Here we might implement a simple check.
-             For now, let's implement standard partial ordering check logic if needed, 
-             but the prompt asks for skeleton. I'll stick to a basic structure.
+            -1 if self < other (self happened before other)
+             1 if self > other (other happened before self)
+             0 if concurrent or equal
         """
-        # Skeleton implementation
-        pass
+        keys = set(self.timestamps.keys()) | set(other.timestamps.keys())
+        greater = False
+        smaller = False
+        
+        for key in keys:
+            v1 = self.timestamps.get(key, 0)
+            v2 = other.timestamps.get(key, 0)
+            
+            if v1 > v2:
+                greater = True
+            elif v1 < v2:
+                smaller = True
+        
+        if greater and not smaller:
+            return 1
+        if smaller and not greater:
+            return -1
+        return 0 # Equal or Concurrent
 
-    def is_causally_ready(self, other: 'VectorClock') -> bool:
-        # Skeleton implementation
+    def is_causally_ready(self, message_clock: 'VectorClock', sender_id: NodeId) -> bool:
+        """
+        Checks if a message with `message_clock` from `sender_id` can be delivered
+        given the current local `self` clock.
+        
+        Conditions:
+        1. message_clock[sender_id] == self[sender_id] + 1 (Next message from sender)
+        2. for all k != sender_id: message_clock[k] <= self[k] (We have seen all messages seen by sender)
+        """
+        # Condition 1: Check sender sequence
+        sender_msg_time = message_clock.timestamps.get(sender_id, 0)
+        local_sender_time = self.timestamps.get(sender_id, 0)
+        
+        if sender_msg_time != local_sender_time + 1:
+            return False
+            
+        # Condition 2: Check causality for all other nodes
+        other_nodes = set(self.timestamps.keys()) | set(message_clock.timestamps.keys())
+        other_nodes.discard(sender_id)
+        
+        for node in other_nodes:
+            if message_clock.timestamps.get(node, 0) > self.timestamps.get(node, 0):
+                return False
+                
         return True
 
 @dataclass
@@ -46,7 +86,7 @@ class Message:
     type: MessageType
     message_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     content: str = ""
-    sender_id: str = ""
+    sender_id: NodeId = ""
     room_id: str = ""
     vector_clock: VectorClock = field(default_factory=VectorClock)
 
@@ -69,14 +109,16 @@ class Message:
 @dataclass
 class Room:
     room_id: str
-    client_ids: List[str] = field(default_factory=list)
+    client_ids: List[NodeId] = field(default_factory=list)
     message_history: List[Message] = field(default_factory=list)
+    vector_clock: VectorClock = field(default_factory=VectorClock)
+    hold_back_queue: List[Message] = field(default_factory=list)
 
-    def add_client(self, client_id: str):
+    def add_client(self, client_id: NodeId):
         if client_id not in self.client_ids:
             self.client_ids.append(client_id)
 
-    def remove_client(self, client_id: str):
+    def remove_client(self, client_id: NodeId):
         if client_id in self.client_ids:
             self.client_ids.remove(client_id)
 
