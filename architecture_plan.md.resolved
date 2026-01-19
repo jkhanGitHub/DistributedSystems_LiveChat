@@ -1,0 +1,206 @@
+# Software Architecture Plan: Distributed Live Chat System
+
+This document outlines the software architecture for the Distributed Live Chat System based on the requirements in [DS_Two_Page_Proposal_Final2.pdf](file:///g:/Meine%20Ablage/Master/Uni_Stuttgart/WiSe25_26/Distributed_System_Project/DS_Two_Page_Proposal_Final2.pdf).
+
+## System Overview
+The system is a distributed chat application with a Client-Server architecture organized in a logical ring. It features:
+- **Dynamic UDP Discovery**
+- **Distributed Leader Election (Hirschberg-Sinclair)**
+- **Fault Tolerance (Crash Model & Replication)**
+- **Causal Ordered Multicast (Vector Clocks)**
+
+## Class Diagram
+
+```mermaid
+classDiagram
+    %% Core Entities
+    class Message {
+        +UUID message_id
+        +String content
+        +String sender_id
+        +String room_id
+        +VectorClock vector_clock
+        +MessageType type
+        +serialize()
+        +deserialize()
+    }
+
+    class MessageType {
+        <<enumeration>>
+        CHAT
+        DISCOVERY
+        ELECTION
+        HEARTBEAT
+        SYNC
+        METADATA_UPDATE
+    }
+
+    class VectorClock {
+        +Map~String, Integer~ timestamps
+        +increment(String node_id)
+        +merge(VectorClock other)
+        +compare(VectorClock other) int
+        +is_causally_ready(VectorClock other) bool
+    }
+
+    class Room {
+        +String room_id
+        +List~String~ client_ids
+        +List~Message~ message_history
+        +add_client(String client_id)
+        +remove_client(String client_id)
+        +add_message(Message msg)
+    }
+
+    %% Networking & Utils
+    class UDPHandler {
+        +broadcast(Message msg, int port)
+        +listen(int port, callback)
+    }
+
+    class TCPConnection {
+        +Socket socket
+        +send(Message msg)
+        +receive() Message
+        +close()
+    }
+
+    class ConnectionManager {
+        +Map~String, TCPConnection~ active_connections_peer_to_peer
+        +Map~String, TCPConnection~ active_connections_server_to_client
+        +connect_to(String ip, int port)
+        +listen_for_connections(int port)
+        +send_to_node(String node_id, Message msg)
+        +broadcast_to_all(Message msg)
+    }
+
+    %% Server Components
+    class ServerNode {
+        +String server_id
+        +String ip_address
+        +int port
+        +ServerState state
+        +String leader_id
+        +RingNeighbor left_neighbor
+        +RingNeighbor right_neighbor
+        +Map~String, Room~ managed_rooms
+        --
+        +start()
+        +handle_discovery()
+        +handle_join()
+        +process_message(Message msg)
+    }
+
+    class ServerState {
+        <<enumeration>>
+        LOOKING
+        FOLLOWER
+        LEADER
+        ELECTION_IN_PROGRESS
+    }
+
+    class ElectionModule {
+        +String candidate_id
+        +start_election()
+        +handle_election_message(Message msg)
+        -hirschberg_sinclair_algo()
+    }
+
+    class FailureDetector {
+        +start_monitoring(Map~String, Node~ nodes)
+        +send_heartbeat()
+        +check_timeouts()
+        +on_failure_detected(String failed_node_id)
+    }
+
+    class MetadataStore {
+        +Map~String, String~ room_locations
+        +Map~String, ClientInfo~ active_clients
+        +sync_with_leader()
+        +update_metadata()
+    }
+
+    class CausalMulticastHandler {
+        +VectorClock local_clock
+        +List~Message~ hold_back_queue
+        +deliver_message(Message msg)
+        +multicast(Message msg)
+        -check_delivery_condition()
+    }
+
+    %% Client Components
+    class ChatClient {
+        +String client_id
+        +String username
+        +TCPConnection server_connection
+        +VectorClock client_clock
+        +start()
+        +discover_server()
+        +join_room(String room_id)
+        +send_message(String content)
+        +receive_message(Message msg)
+    }
+
+    %% Relationships
+    Message *-- VectorClock
+    Message *-- MessageType
+    
+    ServerNode *-- ConnectionManager
+    ServerNode *-- ElectionModule
+    ServerNode *-- FailureDetector
+    ServerNode *-- MetadataStore
+    ServerNode *-- CausalMulticastHandler
+    ServerNode o-- Room
+    ServerNode --> UDPHandler : uses
+
+    ChatClient *-- ConnectionManager
+    ChatClient --> UDPHandler : uses
+    
+    ElectionModule ..> ConnectionManager : sends votes
+    CausalMulticastHandler ..> ConnectionManager : sends chats
+```
+
+## Component Descriptions
+
+### 1. **Core Data Structures**
+- **`Message`**: The fundamental unit of communication. Handles serialization for network transmission. Includes a `VectorClock` for causal ordering.
+- **`VectorClock`**: Implements the logic for vector timestamps (increment, merge, compare) to ensure causal order delivery.
+- **`Room`**: Represents a chat room managed by a server, holding connected client IDs and message history.
+
+### 2. **Network Layer**
+- **`UDPHandler`**: Manages UDP broadcasting for the **Dynamic Discovery** phase.
+- **`TCPConnection` / `ConnectionManager`**: Handles reliable, connection-oriented communication between clients and servers, and inter-server communication (Ring topology).
+
+### 3. **Server Node (`ServerNode`)**
+The central controller for a server instance.
+- **State Management**: Tracks if the server is a Leader, Follower, or in Election.
+- **`ElectionModule`**: Implements the **Hirschberg-Sinclair** algorithm. Handles passing election tokens and determining the leader.
+- **`FailureDetector`**: Implements the Heartbeat mechanism. Monitors neighbors (Left/Right) and the Leader. Triggers 'on_failure_detected' to start reconfiguration or election.
+- **`MetadataStore`**: Stores global state (which server has which room), replicated from the Leader.
+- **`CausalMulticastHandler`**: Manages the hold-back queue. Buffers messages until their vector clock condition is met (Wait until `Msg.VC <= Local.VC + 1`).
+
+### 4. **Client Node (`ChatClient`)**
+- Connects to a server after discovery.
+- Maintains its own causal view (if required for client-side ordering, though usually handled by server-side buffering before delivery to client, or client maintains causal dependency).
+- **Discovery**: Uses `UDPHandler` to find an available server.
+
+## Interaction Flows
+
+### Dynamic Discovery
+1. `ChatClient` calls `UDPHandler.broadcast(DISCOVERY_MSG)`.
+2. `ServerNode` (via `UDPHandler`) receives discovery.
+3. `ServerNode` replies with TCP connection details.
+4. `ChatClient` establishes `TCPConnection`.
+
+### Leader Election (Hirschberg-Sinclair)
+1. `FailureDetector` notices Leader is down.
+2. `ServerNode` changes state to `ELECTION_IN_PROGRESS`.
+3. `ElectionModule` sends `ELECTION` message with own ID to neighbors.
+4. Messages traverse the ring based on HS rules (doubling distance/comparisons).
+5. Winner becomes `LEADER` and announces checking via `COORDINATOR` message.
+
+### Causal Multicast
+1. `ChatClient` sends chat to `ServerNode`.
+2. `ServerNode` (Sender) increments its Vector Clock, timestamps message, and multicasts to other Servers holding room participants.
+3. Receiving `ServerNode`s put message in `CausalMulticastHandler`'s queue.
+4. `CausalMulticastHandler` checks Vector Clock. If valid (next in sequence), delivers to `Room` (and connected clients) and updates Local Vector Clock.

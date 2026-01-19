@@ -1,0 +1,16 @@
+# Bytes
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Caches
+.pytest_cache/
+.mypy_cache/
+.tox/
+.venv/
+venv/
+
+# User specified
+*.pdf
+*.txt
+*.png
