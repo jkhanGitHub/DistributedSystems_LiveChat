@@ -1,26 +1,14 @@
-import socket
-import os
-from multiprocessing import Process
-from typing import Tuple
 from enum import Enum, auto
 from typing import Dict, Optional, Any
 from dataclasses import dataclass
 
-from ..domain.models import Room, Message
+from ..domain.models import Room, Message, MessageType
 from ..network.transport import ConnectionManager, UDPHandler
 from .election import ElectionModule
 from .failure_detector import FailureDetector
 from .metadata import MetadataStore
 from .multicast import CausalMulticastHandler
-
-from ..domain.models import MessageType
-
-
-class ServerState(Enum):
-    LOOKING = "LOOKING"
-    FOLLOWER = "FOLLOWER"
-    LEADER = "LEADER"
-    ELECTION_IN_PROGRESS = "ELECTION_IN_PROGRESS"
+from .server_state import ServerState
 
 @dataclass
 class RingNeighbor:
@@ -49,8 +37,8 @@ class ServerNode:
         # Components
         self.connection_manager = ConnectionManager()
         self.udp_handler = UDPHandler()
-        self.election_module = ElectionModule(candidate_id=server_id)
-        self.failure_detector = FailureDetector()
+        self.election_module = ElectionModule(self)
+        self.failure_detector = FailureDetector(self)
         self.metadata_store = MetadataStore()
         self.multicast_handler = CausalMulticastHandler()
 
