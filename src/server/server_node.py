@@ -13,6 +13,9 @@ from .failure_detector import FailureDetector
 from .metadata import MetadataStore
 from .multicast import CausalMulticastHandler
 
+from ..domain.models import MessageType
+
+
 class ServerState(Enum):
     LOOKING = "LOOKING"
     FOLLOWER = "FOLLOWER"
@@ -27,15 +30,20 @@ class RingNeighbor:
 
 class ServerNode:
     def __init__(self, server_id: str, ip_address: str, port: int):
+        super().__init__()
         self.server_id = server_id
         self.ip_address = ip_address
         self.port = port
+        
+        # logical state
         self.state = ServerState.LOOKING
         self.leader_id: Optional[str] = None
         
+        # ring structure
         self.left_neighbor: Optional[RingNeighbor] = None
         self.right_neighbor: Optional[RingNeighbor] = None
         
+        # room
         self.managed_rooms: Dict[str, Room] = {}
         
         # Components
@@ -47,31 +55,141 @@ class ServerNode:
         self.multicast_handler = CausalMulticastHandler()
 
     def start(self):
-        # Skeleton implementation
-        pass
+        self.run()
+
+    def run(self):
+        """
+        Main server loop.
+        Handles:
+        - TCP connections (clients & servers)
+        - UDP discovery
+        """
+        # ---- TCP listener ----
+        tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        tcp_socket.bind((self.ip_address, self.port))
+        tcp_socket.listen()
+
+        print(
+            f"[Server {self.server_id}] PID {os.getpid()} "
+            f"listening on {self.ip_address}:{self.port}"
+        )
+
+        # ---- UDP discovery listener ----
+        self.udp_handler.listen(self.port, self._handle_udp_message)
+
+        while True:
+            sock, addr = tcp_socket.accept()
+            print("DEBUG handle_join signature:", self.handle_join)
+            self.handle_join(sock, addr)
 
     def handle_discovery(self):
-        # Skeleton implementation
-        pass
+        # Broadcast discovery message to locate other servers
+        discovery_msg = Message(
+            type=MessageType.DISCOVERY,
+            sender_id=self.server_id,
+        )
+        self.udp_handler.broadcast(discovery_msg.serialize())
 
-    def handle_join(self):
-        # Skeleton implementation
-        pass
+    def _handle_udp_message(self, raw: bytes, addr):
+        """
+        Handle incoming UDP messages.
+        """
+        msg = Message.deserialize(raw)
 
-    from ..domain.models import MessageType
+        if msg.type == MessageType.DISCOVERY:
+            # Respond with server metadata
+            response = Message(
+                type=MessageType.METADATA,
+                sender_id=self.server_id,
+                payload={
+                    "ip": self.ip_address,
+                    "port": self.port,
+                },
+            )
+            self.udp_handler.send(response.serialize(), addr)
+
+    def handle_join(self, sock: socket.socket, addr):
+        # Handle a new TCP connection
+        conn = self.connection_manager.wrap_socket(sock)
+        msg = conn.receive()
+
+        if msg.type == MessageType.CLIENT_JOIN:
+            self._handle_client_join(msg, conn)
+
+        elif msg.type == MessageType.SERVER_JOIN:
+            self._handle_server_join(msg, conn)
+
+    def _handle_join_room(self, msg: Message):
+        room_id = msg.room_id
+        client_id = msg.sender_id
+
+        # Create room if it doesn't exist
+        if room_id not in self.managed_rooms:
+            self.managed_rooms[room_id] = Room(room_id)
+            print(f"[Server {self.server_id}] created room {room_id}")
+
+        room = self.managed_rooms[room_id]
+        room.add_client(client_id)
+
+        print(
+            f"[Server {self.server_id}] client {client_id} "
+            f"joined room {room_id}"
+        )
+        
+
+    def _handle_client_join(self, msg: Message, conn):
+        """
+        Register a new client.
+        """
+        self.connection_manager.active_connections_server_to_client[msg.sender_id] = conn
+        print(f"[Server {self.server_id}] client joined: {msg.sender_id}")
+
+        self.connection_manager.listen_to_connection(
+            conn,
+            self.process_message
+        )
+
+    def _handle_server_join(self, msg: Message, conn):
+        """
+        Register a new peer server.
+        """
+        self.connection_manager.active_connections_peer_to_peer[msg.sender_id] = conn
+        print(f"[Server {self.server_id}] peer joined: {msg.sender_id}")
+
+        self.connection_manager.listen_to_connection(
+            conn,
+            self.process_message
+        )
 
     def process_message(self, msg: Message):
         match msg.type:
             case MessageType.CHAT:
                 if msg.room_id in self.managed_rooms:
                     room = self.managed_rooms[msg.room_id]
-                    self.multicast_handler.handle_chat_message(msg, room)
+                    self.multicast_handler.handle_chat_message(msg, room) # Currently this doesn't work. 
                 else:
-                    print(f"[Server] Error: Room {msg.room_id} not found.")
+                    print(
+                        f"[Server {self.server_id}] "
+                        f"room {msg.room_id} not found"
+                    )
+
             case MessageType.DISCOVERY:
                 self.handle_discovery()
+
             case MessageType.ELECTION:
-                # self.election_module.handle_election(msg)
-                pass
+                self.election_module.handle_message(msg)
+
+            case MessageType.HEARTBEAT:
+                self.failure_detector.handle_heartbeat(msg)
+
+            case MessageType.METADATA_UPDATE:
+                self.metadata_store.update(msg)
+
+            case MessageType.JOIN_ROOM:
+                self._handle_join_room(msg)
+
             case _:
-                print(f"[Server] Unknown message type: {msg.type}")
+                print(
+                    f"[Server {self.server_id}] "
+                    f"unknown message type: {msg.type}"
+                )

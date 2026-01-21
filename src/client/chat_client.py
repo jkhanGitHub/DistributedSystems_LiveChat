@@ -1,51 +1,106 @@
 from typing import Optional
-from ..domain.models import VectorClock, Message, NodeId, generate_node_id
+from ..domain.models import (
+    VectorClock,
+    Message,
+    MessageType,
+    NodeId,
+    generate_node_id,
+)
 from ..network.transport import TCPConnection, UDPHandler, ConnectionManager
+
 
 class ChatClient:
     def __init__(self, username: str, client_id: Optional[NodeId] = None):
         self.client_id = client_id or generate_node_id()
         self.username = username
+
         self.server_connection: Optional[TCPConnection] = None
         self.client_clock = VectorClock()
+
         self.udp_handler = UDPHandler()
-        self.connection_manager = ConnectionManager() # using connection manager to handle connection logic if needed
+        self.connection_manager = ConnectionManager()
 
-    def start(self):
-        # Skeleton implementation
-        pass
+    # Lifecycle
+    def start(self, ip: str, port: int):
+        """
+        Connect to server and start receiving messages.
+        """
+        self.server_connection = self.connection_manager.connect_to(ip, port)
 
-    def discover_server(self):
-        # Skeleton implementation
-        pass
+        # Send JOIN message so server can register us
+        join_msg = Message(
+            type=MessageType.CLIENT_JOIN,
+            sender_id=self.client_id,
+        )
+        self.server_connection.send(join_msg)
 
+        # Start async receive loop
+        self.connection_manager.listen_to_connection(
+            self.server_connection,
+            self.receive_message,
+        )
+
+        print(f"[Client {self.client_id}] connected to {ip}:{port}")
+
+    # Discovery
+    def discover_server(self, discovery_port: int, callback):
+        """
+        Discover servers via UDP.
+        """
+        discovery_msg = Message(
+            type=MessageType.DISCOVERY,
+            sender_id=self.client_id,
+        )
+
+        self.udp_handler.broadcast(discovery_msg, discovery_port)
+        self.udp_handler.listen(discovery_port, callback)
+
+    # Chat protocol
     def join_room(self, room_id: str):
-        # Skeleton implementation
-        pass
+        """
+        Join a chat room.
+        """
+        if not self.server_connection:
+            print("[Client] Not connected to server")
+            return
+
+        join_room_msg = Message(
+            type=MessageType.JOIN_ROOM,
+            sender_id=self.client_id,
+            room_id=room_id,
+        )
+        self.server_connection.send(join_room_msg)
 
     def send_message(self, content: str, room_id: str):
-        # 1. Increment local clock
+        """
+        Send a chat message.
+        """
+        # Increment local clock
         self.client_clock.increment(self.client_id)
-        
-        # 2. Create message with COPY of clock
-        # Note: In a real implementation we might deepcopy, but here a simple dict copy is enough
-        # assuming timestamps are ints.
-        msg_clock = VectorClock(timestamps=self.client_clock.timestamps.copy())
-        
+
+        msg_clock = VectorClock(
+            timestamps=self.client_clock.timestamps.copy()
+        )
+
         msg = Message(
             type=MessageType.CHAT,
             content=content,
             sender_id=self.client_id,
             room_id=room_id,
-            vector_clock=msg_clock
+            vector_clock=msg_clock,
         )
-        
-        # 3. Send to server
-        if self.server_connection:
-            self.server_connection.send(msg.serialize())
-        else:
-            print(f"[Client] Mock Send: {msg.serialize()}")
 
+        if self.server_connection:
+            self.server_connection.send(msg)
+        else:
+            print("[Client] Not connected")
+
+    # Receive
     def receive_message(self, msg: Message):
-        # Skeleton implementation
-        pass
+        """
+        Handle incoming messages from server.
+        """
+        print(
+            f"[Client {self.client_id}] "
+            f"received {msg.type.name}: {msg.content}"
+        )

@@ -5,6 +5,9 @@ import json
 from dataclasses import dataclass, field, asdict
 
 class MessageType(Enum):
+    CLIENT_JOIN = "CLIENT_JOIN"
+    JOIN_ROOM = "JOIN_ROOM"
+    LEAVE_ROOM = "LEAVE_ROOM"
     CHAT = "CHAT"
     DISCOVERY = "DISCOVERY"
     ELECTION = "ELECTION"
@@ -99,12 +102,25 @@ class Message:
             "sender_id": self.sender_id,
             "room_id": self.room_id,
             "vector_clock": self.vector_clock.timestamps
-        })
+        }).encode("utf-8")
 
     @staticmethod
     def deserialize(data: str) -> 'Message':
-        # Skeleton implementation
-        pass
+        if isinstance(data, bytes):
+            data = data.decode("utf-8")
+
+        obj = json.loads(data)
+
+        return Message(
+            type=MessageType(obj["type"]),
+            message_id=obj["message_id"],
+            content=obj.get("content", ""),
+            sender_id=obj.get("sender_id", ""),
+            room_id=obj.get("room_id", ""),
+            vector_clock=VectorClock(
+                timestamps=obj.get("vector_clock", {})
+        )
+    )
 
 @dataclass
 class Room:
