@@ -1,6 +1,8 @@
 from enum import Enum, auto
 from typing import Dict, Optional, Any
 from dataclasses import dataclass
+import socket
+import os
 
 from ..domain.models import Room, Message, MessageType
 from ..network.transport import ConnectionManager, UDPHandler
