@@ -9,6 +9,7 @@ class MetadataStore:
 
     def __init__(self, room_locations = {}):
         self.room_locations = room_locations
+        self.known_servers = {}  # server_id -> (ip, port)
 
     #To be called by the process_message method if the message type is METADATA_UPDATE
     def handle_message(self,message):
@@ -34,7 +35,21 @@ class MetadataStore:
                 leader = ConnectionManagerObject.active_connections_peer_to_peer[server.leader_id]
                 leader.send(m)
 
+    def get_servers(self):
+        return self.known_servers
+
+    # To be called by the leader server
+    def sync_with_leader(self, peer, id):
+        m = Message(
+            content="Sync " + str(self.room_locations),
+            sender_id=id,
+            type=MessageType.METADATA_UPDATE
+        )
+        peer.send(m)
+
     #To be called by the leader server
-    def sync_with_leader(peer, id):
+    def sync_with_leader(self, peer, id):
         m = Message(content = "Sync " + str(self.room_locations), sender_id = id, type = MessageType.METADATA_UPDATE.value)
         peer.send(m)
+
+    

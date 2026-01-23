@@ -3,6 +3,7 @@ from typing import Dict, Optional, Any
 from dataclasses import dataclass
 import socket
 import os
+import json
 
 from ..domain.models import Room, Message, MessageType
 from ..network.transport import ConnectionManager, UDPHandler
@@ -42,7 +43,7 @@ class ServerNode:
         self.election_module = ElectionModule(self)
         self.failure_detector = FailureDetector(self)
         self.metadata_store = MetadataStore()
-        self.multicast_handler = CausalMulticastHandler()
+        self.multicast_handler = CausalMulticastHandler(self)
 
     def start(self):
         self.run()
@@ -67,6 +68,8 @@ class ServerNode:
         # ---- UDP discovery listener ----
         self.udp_handler.listen(self.port, self._handle_udp_message)
 
+        self.handle_discovery()
+
         while True:
             sock, addr = tcp_socket.accept()
             print("DEBUG handle_join signature:", self.handle_join)
@@ -78,25 +81,35 @@ class ServerNode:
             type=MessageType.DISCOVERY,
             sender_id=self.server_id,
         )
-        self.udp_handler.broadcast(discovery_msg.serialize())
+        self.udp_handler.broadcast(discovery_msg, self.port)
 
-    def _handle_udp_message(self, raw: bytes, addr):
-        """
-        Handle incoming UDP messages.
-        """
-        msg = Message.deserialize(raw)
+    def _handle_udp_message(self, msg: Message):
+        if msg.sender_id == self.server_id:
+            return
 
         if msg.type == MessageType.DISCOVERY:
-            # Respond with server metadata
+            print(
+                f"[Server {self.server_id}] discovered server {msg.sender_id}"
+            )
+
             response = Message(
-                type=MessageType.METADATA,
+                type=MessageType.METADATA_UPDATE,
                 sender_id=self.server_id,
-                payload={
+                content=json.dumps({
                     "ip": self.ip_address,
                     "port": self.port,
-                },
+                }),
             )
-            self.udp_handler.send(response.serialize(), addr)
+            self.udp_handler.broadcast(response, self.port)
+
+        elif msg.type == MessageType.METADATA_UPDATE:
+            data = json.loads(msg.content)
+            self.metadata_store.update_server(
+                msg.sender_id,
+                data["ip"],
+                data["port"]
+            )
+
 
     def handle_join(self, sock: socket.socket, addr):
         # Handle a new TCP connection
@@ -173,7 +186,7 @@ class ServerNode:
                 self.failure_detector.handle_heartbeat(msg)
 
             case MessageType.METADATA_UPDATE:
-                self.metadata_store.update(msg)
+                self.metadata_store.handle_message(msg)
 
             case MessageType.JOIN_ROOM:
                 self._handle_join_room(msg)
