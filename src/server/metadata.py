@@ -11,7 +11,7 @@ class MetadataStore:
         self.room_locations = room_locations
 
     #To be called by the process_message method if the message type is METADATA_UPDATE
-    def handle_message(self,message):
+    def handle_message(self,message, ConnectionManagerObject):
         m = message.content
         if "Update" in m:
             m = m.split()
@@ -19,8 +19,12 @@ class MetadataStore:
             self.room_locations[room_id] = message.sender_id
             #print(self.room_locations)
         elif "Sync " in m:
-            m = m[5:]
-            self.room_locations = ast.literal_eval(m)
+            if "Room" in m:
+                m = m[9:]
+                self.room_locations = ast.literal_eval(m)
+            elif "Connections" in m:
+                m = m[16:]
+                ConnectionManagerObject.active_connections_peer_to_peer = ast.literal_eval(m)
             #print(self.room_locations)
 
     #send the new room that is added to the leader
@@ -35,6 +39,8 @@ class MetadataStore:
                 leader.send(m)
 
     #To be called by the leader server
-    def sync_with_leader(self, peer, id):
-        m = Message(content = "Sync " + str(self.room_locations), sender_id = id, type = MessageType.METADATA_UPDATE.value)
+    def sync_with_leader(self, peer, id, ConnectionManagerObject):
+        m = Message(content = "Sync Room" + str(self.room_locations), sender_id = id, type = MessageType.METADATA_UPDATE.value)
+        peer.send(m)
+        m = Message(content = "Sync Connections" + str(ConnectionManagerObject.active_connections_peer_to_peer), sender_id = id, type = MessageType.METADATA_UPDATE.value)
         peer.send(m)
