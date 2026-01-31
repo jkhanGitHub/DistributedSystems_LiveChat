@@ -11,7 +11,7 @@ class FailureDetector:
     #Heartbeat mechanism for a particular server
     #What about heartbeats during elections
     #If failure detector and the election run in different processes, then it could work together.
-    Node = None                                                     
+    Node = None
     type = 'server'
     PERIOD = 2
     timers = {}
@@ -40,7 +40,7 @@ class FailureDetector:
                 for i in ConnectionManagerObject.active_connections_peer_to_peer.keys():
                     if i != me.leader_id:
                         active_connections_peers[i].send(m)
-                        MetadataStoreObject.sync_with_leader(active_connections_peers[i], me.server_id)
+                        MetadataStoreObject.sync_with_leader(active_connections_peers[i], me.server_id, ConnectionManagerObject)
         else:
             m = Message(content = 'Client Heartbeat', sender_id = me.client_id, type = MessageType.HEARTBEAT.value)
             me.server_connection.send(m)
@@ -95,6 +95,7 @@ class FailureDetector:
                 if id in ConnectionManagerObject.active_connections_peer_to_peer.keys():
                     ConnectionManagerObject.active_connections_peer_to_peer.pop(id)
                     #Fix the ring
+                    #Elections are to be triggered newly after ring formation
                     """
                     if id == me.right_neighbor:
                         me.right_neighbor = me.right_neighbor.right_neighbor
