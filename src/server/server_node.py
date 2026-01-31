@@ -43,7 +43,7 @@ class ServerNode:
         self.election_module = ElectionModule(self)
         self.failure_detector = FailureDetector(self)
         self.metadata_store = MetadataStore()
-        self.multicast_handler = CausalMulticastHandler(self)
+        self.multicast_handler = CausalMulticastHandler()
 
     def start(self):
         self.run()
