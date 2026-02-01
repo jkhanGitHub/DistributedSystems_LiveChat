@@ -57,6 +57,7 @@ class ServerNode:
         """
         # ---- TCP listener ----
         tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        tcp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) #Adding reuaseaddr
         tcp_socket.bind((self.ip_address, self.port))
         tcp_socket.listen()
 
@@ -102,14 +103,13 @@ class ServerNode:
             )
             self.udp_handler.broadcast(response, self.port)
 
-        elif msg.type == MessageType.METADATA_UPDATE:
+        """elif msg.type == MessageType.METADATA_UPDATE:
             data = json.loads(msg.content)
-            self.metadata_store.update_server(
+            self.metadata_store.sync_with_leader(
                 msg.sender_id,
                 data["ip"],
                 data["port"]
-            )
-
+            )"""
 
     def handle_join(self, sock: socket.socket, addr):
         # Handle a new TCP connection
@@ -139,7 +139,6 @@ class ServerNode:
             f"joined room {room_id}"
         )
         
-
     def _handle_client_join(self, msg: Message, conn):
         """
         Register a new client.

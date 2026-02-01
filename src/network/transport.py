@@ -15,6 +15,7 @@ class UDPHandler:
         self.socket.sendto(data, ("<broadcast>", port))
 
     def listen(self, port: int, callback: Callable[[Message], None]):
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) #Added resusddr
         self.socket.bind(("", port))
 
         def loop():
@@ -24,7 +25,6 @@ class UDPHandler:
                 callback(msg)
 
         threading.Thread(target=loop, daemon=True).start()
-
 
 # TCP CONNECTION
 class TCPConnection:
