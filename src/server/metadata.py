@@ -3,6 +3,8 @@ from ..domain.models import Message, MessageType
 from ..network.transport import ConnectionManager
 from .server_state import ServerState
 import ast
+import json
+import socket
 
 class MetadataStore:
     room_locations = {}
@@ -24,8 +26,17 @@ class MetadataStore:
                 self.room_locations = ast.literal_eval(m)
             elif "Connections" in m:
                 m = m[16:]
-                ConnectionManagerObject.active_connections_peer_to_peer = ast.literal_eval(m)
+                ConnectionManagerObject.active_connections_peer_to_peer = json.loads(m)
+                for i in ConnectionManagerObject.active_connections_peer_to_peer.keys():
+                    ipport = ConnectionManagerObject.active_connections_peer_to_peer[i].split()
+                    ip = ipport[0]
+                    port = ipport[1]
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    #Store it as a TCPConnection object instead of ip and port
+                    ConnectionManagerObject.active_connections_peer_to_peer[i] = ConnectionManagerObject.wrap_socket(sock,ip,port))
+
             #print(self.room_locations)
+            #print(ConnectionManagerObject.active_connections_peer_to_peer)
 
     #send the new room that is added to the leader
     #To be called when a new room is added by the server. Through Discovery.
@@ -34,13 +45,11 @@ class MetadataStore:
         self.room_locations[room_id] = server.server_id
         if server.state != ServerState.LEADER.value:
             m = Message(content = "Update " + str(room_id), sender_id = server.server_id, type = MessageType.METADATA_UPDATE.value)
-            if server.leader_id in ConnectionManagerObject.active_connections_peer_to_peer.keys():
-                leader = ConnectionManagerObject.active_connections_peer_to_peer[server.leader_id]
-                leader.send(m)
+            ConnectionManagerObject.send_to_node(server.leader_id, m)
 
     #To be called by the leader server
     def sync_with_leader(self, peer, id, ConnectionManagerObject):
         m = Message(content = "Sync Room" + str(self.room_locations), sender_id = id, type = MessageType.METADATA_UPDATE.value)
         peer.send(m)
-        m = Message(content = "Sync Connections" + str(ConnectionManagerObject.active_connections_peer_to_peer), sender_id = id, type = MessageType.METADATA_UPDATE.value)
+        m = Message(content = "Sync Connections" + ConnectionManagerObject.stringify(), sender_id = id, type = MessageType.METADATA_UPDATE.value)
         peer.send(m)
