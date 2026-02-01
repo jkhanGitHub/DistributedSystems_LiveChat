@@ -58,7 +58,7 @@ class ElectionModule:
                 self.k = 0
                 for i in ConnectionManagerObject.active_connections_peer_to_peer.keys():
                     if i != me.server_id:
-                        active_connections_peer_to_peer[i].send(m)
+                        ConnectionManagerObject.active_connections_peer_to_peer[i].send(m)
                 """
                 Either trigger ring formation again without the leader or fix the ring by removing self
                 """
