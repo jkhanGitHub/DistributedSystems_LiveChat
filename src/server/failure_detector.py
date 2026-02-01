@@ -27,15 +27,9 @@ class FailureDetector:
             m = Message(content = 'Server Heartbeat', sender_id = me.server_id, type = MessageType.HEARTBEAT.value)
             #Ensures fault tolerance happens even during elections
             if me.state != ServerState.LEADER.value:
-                if me.right_neighbor.id in ConnectionManagerObject.active_connections_peer_to_peer.keys():
-                    right = ConnectionManagerObject.active_connections_peer_to_peer[me.right_neighbor.id]
-                    right.send(m)
-                if me.left_neighbor.id in ConnectionManagerObject.active_connections_peer_to_peer.keys():
-                    left = ConnectionManagerObject.active_connections_peer_to_peer[me.left_neighbor.id]
-                    left.send(m)
-                if me.leader_id in ConnectionManagerObject.active_connections_peer_to_peer.keys():
-                    leader = ConnectionManagerObject.active_connections_peer_to_peer[me.leader_id]
-                    leader.send(m)
+                ConnectionManagerObject.send_to_node(me.right_neighbor.id,m)
+                ConnectionManagerObject.send_to_node(me.left_neighbor.id,m)
+                ConnectionManagerObject.send_to_node(me.leader_id,m)
             else:
                 for i in ConnectionManagerObject.active_connections_peer_to_peer.keys():
                     if i != me.leader_id:
