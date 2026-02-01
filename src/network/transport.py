@@ -28,8 +28,10 @@ class UDPHandler:
 
 # TCP CONNECTION
 class TCPConnection:
-    def __init__(self, sock: socket.socket):
+    def __init__(self, sock: socket.socket, ip = '127.0.0.1', port = 5001):
         self.socket = sock
+        self.ip = ip
+        self.port = port
 
     def send(self, msg: Message):
         payload = msg.serialize()
@@ -60,6 +62,9 @@ class TCPConnection:
     def close(self):
         self.socket.close()
 
+    def stringify(self):
+        return str(self.ip) + ' ' + str(self.port)
+
 
 # CONNECTION MANAGER
 class ConnectionManager:
@@ -67,15 +72,19 @@ class ConnectionManager:
         self.active_connections_peer_to_peer: Dict[str, TCPConnection] = {}
         self.active_connections_server_to_client: Dict[str, TCPConnection] = {}
 
+    # stringify to transmit the object to other peers
+    def stringify(self):
+        modified = {}
+        for i in self.active_connections_peer_to_peer.keys():
+            modified[i] = self.active_connections_peer_to_peer[i].stringify()
+        return json.dumps(modified)
+
     # ---------- connection helpers ----------
 
-    def connect_to(self, ip: str, port: int) -> TCPConnection:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect((ip, port))
-        return TCPConnection(sock)
 
-    def wrap_socket(self, sock: socket.socket) -> TCPConnection:
-        return TCPConnection(sock)
+
+    def wrap_socket(self, sock: socket.socket, ip = '127.0.0.1'. port = 5001) -> TCPConnection:
+        return TCPConnection(sock,ip,port)
 
     # ---------- async receive ----------
 
