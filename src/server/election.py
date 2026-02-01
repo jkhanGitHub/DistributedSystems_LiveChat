@@ -41,24 +41,16 @@ class ElectionModule:
                 m = self.ConstructElectionMessage(dec['mid'], dec['k'], dec['d'] + 1)
                 #Send it forward
                 if dec['mid'] == me.right_neighbor.id:
-                    if me.left_neighbor.id in ConnectionManagerObject.active_connections_peer_to_peer.keys():
-                        left = ConnectionManagerObject.active_connections_peer_to_peer[me.left_neighbor.id]
-                        left.send(m)
+                    ConnectionManagerObject.send_to_node(me.left_neighbor.id, m)
                 elif dec['mid'] == me.left_neighbor.id:
-                    if me.right_neighbor.id in ConnectionManagerObject.active_connections_peer_to_peer.keys():
-                        right = ConnectionManagerObject.active_connections_peer_to_peer[me.right_neighbor.id]
-                        right.send(m)
+                    ConnectionManagerObject.send_to_node(me.right_neighbor.id, m)
             elif me.server_id < dec['mid'] and dec['d'] == 2**dec['k']:
                 m = self.ConstructReplyMessage(dec['mid'], dec['k'])
                 #Send it back
                 if dec['mid'] == me.left_neighbor.id:
-                    if me.left_neighbor.id in ConnectionManagerObject.active_connections_peer_to_peer.keys():
-                        left = ConnectionManagerObject.active_connections_peer_to_peer[me.left_neighbor.id]
-                    left.send(m)
+                    ConnectionManagerObject.send_to_node(me.left_neighbor.id, m)
                 elif dec['mid'] == me.right_neighbor.id:
-                    if me.right_neighbor.id in ConnectionManagerObject.active_connections_peer_to_peer.keys():
-                        right = ConnectionManagerObject.active_connections_peer_to_peer[me.right_neighbor.id]
-                        right.send(m)
+                    ConnectionManagerObject.send_to_node(me.right_neighbor.id, m)
             elif me.server_id == dec['mid']:
                 m = self.ConstructLeaderAnnoucementMessage(me.server_id)
                 me.leader_id = me.server_id
@@ -67,17 +59,16 @@ class ElectionModule:
                 for i in ConnectionManagerObject.active_connections_peer_to_peer.keys():
                     if i != me.server_id:
                         active_connections_peer_to_peer[i].send(m)
+                """
+                Either trigger ring formation again without the leader or fix the ring by removing self
+                """
         elif dec['type'] == 'Reply':
             print('received reply')
             if me.server_id != dec['mid']:
                 if dec['mid'] == me.right_neighbor.id:
-                    if me.left_neighbor.id in ConnectionManagerObject.active_connections_peer_to_peer.keys():
-                        left = ConnectionManagerObject.active_connections_peer_to_peer[me.left_neighbor.id]
-                        left.send(message)
+                    ConnectionManagerObject.send_to_node(me.left_neighbor.id, m)
                 elif dec['mid'] == me.left_neighbor.id:
-                    if me.right_neighbor.id in ConnectionManagerObject.active_connections_peer_to_peer.keys():
-                        right = ConnectionManagerObject.active_connections_peer_to_peer[me.right_neighbor.id]
-                        right.send(message)
+                    ConnectionManagerObject.send_to_node(me.right_neighbor.id, m)
             else:
                 self.reply_counter += 1
                 if reply_counter == 2:
@@ -98,9 +89,5 @@ class ElectionModule:
         self.Node.leader_id = 0
         me = self.Node
         message = self.ConstructElectionMessage(self.Node.server_id, self.k, 2**self.k)
-        if me.right_neighbor.id in ConnectionManagerObject.active_connections_peer_to_peer.keys():
-            right = ConnectionManagerObject.active_connections_peer_to_peer[me.right_neighbor.id]
-            right.send(message)
-        if me.left_neighbor.id in ConnectionManagerObject.active_connections_peer_to_peer.keys():
-            left = ConnectionManagerObject.active_connections_peer_to_peer[me.left_neighbor.id]
-            left.send(message)
+        ConnectionManagerObject.send_to_node(me.right_neighbor.id, m)
+        ConnectionManagerObject.send_to_node(me.left_neighbor.id, m)
