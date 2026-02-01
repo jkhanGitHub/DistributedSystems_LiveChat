@@ -113,7 +113,7 @@ class ServerNode:
 
     def handle_join(self, sock: socket.socket, addr):
         # Handle a new TCP connection
-        conn = self.connection_manager.wrap_socket(sock)
+        conn = self.connection_manager.wrap_socket(sock, ip = addr[0], port = addr[1])
         msg = conn.receive()
 
         if msg.type == MessageType.CLIENT_JOIN:
