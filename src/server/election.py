@@ -20,7 +20,7 @@ class ElectionModule:
         m = Message(content = str(dec),sender_id = id, type = MessageType.ELECTION.value)
         return m
 
-    def ConstructLeaderAnnoucementMessage(self, id):
+    def ConstructLeaderAnnouncementMessage(self, id):
         dec = {'k' : 0, 'd' : 0, 'type' : 'Leader Announcement'}
         m = Message(content = str(dec),sender_id = id, type = MessageType.ELECTION.value)
         return m
@@ -52,16 +52,21 @@ class ElectionModule:
                 elif dec['mid'] == me.right_neighbor.id:
                     ConnectionManagerObject.send_to_node(me.right_neighbor.id, m)
             elif me.server_id == dec['mid']:
-                m = self.ConstructLeaderAnnoucementMessage(me.server_id)
+                m = self.ConstructLeaderAnnouncementMessage(me.server_id)
                 me.leader_id = me.server_id
                 me.state = ServerState.LEADER.value
                 self.k = 0
                 for i in ConnectionManagerObject.active_connections_peer_to_peer.keys():
                     if i != me.server_id:
                         ConnectionManagerObject.active_connections_peer_to_peer[i].send(m)
-                """
-                Either trigger ring formation again without the leader or fix the ring by removing self
-                """
+
+                #Remove self from the ring
+                right = Message(content = str(me.left_neighbor.id),sender_id = id, type = MessageType.UPDATE_NEIGHBOUR.value)
+                left = Message(content = str(me.right_neighbor.id),sender_id = id, type = MessageType.UPDATE_NEIGHBOUR.value)
+                ConnectionManagerObject.send_to_node(me.left_neighbor.id, right)
+                ConnectionManagerObject.send_to_node(me.right_neighbor.id, left)
+                #To be handled in server_node
+
         elif dec['type'] == 'Reply':
             print('received reply')
             if me.server_id != dec['mid']:
