@@ -163,6 +163,13 @@ class ServerNode:
             self.process_message
         )
 
+    def update_neighbour_id(self, msg):
+        if msg.sender_id == me.left_neighbor.id:
+            me.left_neighbor.id = msg.content
+        elif msg.sender_id == me.right_neighbor.id:
+            me.right_neighbor.id = msg.content
+        #Also update the IP Addresses if used.
+    
     def process_message(self, msg: Message):
         match msg.type:
             case MessageType.CHAT:
@@ -189,6 +196,9 @@ class ServerNode:
 
             case MessageType.JOIN_ROOM:
                 self._handle_join_room(msg)
+
+            case MessageType.UPDATE_NEIGHBOUR:
+                self.update_neighbour_id(msg):
 
             case _:
                 print(
