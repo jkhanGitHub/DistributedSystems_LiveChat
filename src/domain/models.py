@@ -14,6 +14,7 @@ class MessageType(Enum):
     HEARTBEAT = "HEARTBEAT"
     SYNC = "SYNC"
     METADATA_UPDATE = "METADATA_UPDATE"
+    UPDATE_NEIGHBOUR = "UPDATE_NEIGHBOUR"
 
 
 NodeId = str
