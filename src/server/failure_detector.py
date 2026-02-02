@@ -51,9 +51,12 @@ class FailureDetector:
         #Start the monitoring for the servers
         if me.state != ServerState.LEADER.value:
             #Start the timers
-            self.timers[('server',me.right_neighbor.id)] = timeit.default_timer()
-            self.timers[('server',me.left_neighbor.id)]= timeit.default_timer()
-            self.timers[('server',me.leader_id)] = timeit.default_timer()
+            if me.right_neighbor.id!=0:
+                self.timers[('server',me.right_neighbor.id)] = timeit.default_timer()
+            if me.left_neighbor.id!=0:
+                self.timers[('server',me.left_neighbor.id)]= timeit.default_timer()
+            if me.leader_id!=0:
+                self.timers[('server',me.leader_id)] = timeit.default_timer()
         else:
             #If leader, start the timer for all the other servers
             for i in ConnectionManagerObject.active_connections_peer_to_peer.keys():
