@@ -33,7 +33,7 @@ class FailureDetector:
             else:
                 for i in ConnectionManagerObject.active_connections_peer_to_peer.keys():
                     if i != me.leader_id:
-                        active_connections_peers[i].send(m)
+                        ConnectionManagerObject.active_connections_peer_to_peer[i].send(m)
                         MetadataStoreObject.sync_with_leader(active_connections_peers[i], me.server_id, ConnectionManagerObject)
         else:
             m = Message(content = 'Client Heartbeat', sender_id = me.client_id, type = MessageType.HEARTBEAT.value)
