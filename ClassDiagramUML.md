@@ -1,16 +1,17 @@
-    class Message {
-        +UUID message_id
+class Message {
+        +String message_id
         +String content
         +String sender_id
         +String room_id
-        +VectorClock vector_clock
-        +MessageType type
-        +serialize()
-        +deserialize()
+        +serialize() String
+        +deserialize(String data)$ Message
     }
 
     class MessageType {
         <<enumeration>>
+        CLIENT_JOIN
+        JOIN_ROOM
+        LEAVE_ROOM
         CHAT
         DISCOVERY
         ELECTION
@@ -20,24 +21,25 @@
     }
 
     class VectorClock {
-        +Map~String, Integer~ timestamps
+        +Map~String, int~ timestamps
         +increment(String node_id)
         +merge(VectorClock other)
         +compare(VectorClock other) int
-        +is_causally_ready(VectorClock other) bool
+        +is_causally_ready(VectorClock other, String sender_id) bool
     }
 
     class Room {
         +String room_id
         +List~String~ client_ids
         +List~Message~ message_history
+        +List~Message~ hold_back_queue
         +add_client(String client_id)
         +remove_client(String client_id)
         +add_message(Message msg)
     }
 
-
     class UDPHandler {
+        +Socket socket
         +broadcast(Message msg, int port)
         +listen(int port, callback)
     }
@@ -47,31 +49,30 @@
         +send(Message msg)
         +receive() Message
         +close()
+        -_recv_exact(int size) bytes
     }
 
     class ConnectionManager {
         +Map~String, TCPConnection~ active_connections_peer_to_peer
         +Map~String, TCPConnection~ active_connections_server_to_client
-        +connect_to(String ip, int port)
-        +listen_for_connections(int port)
+        +connect_to(String ip, int port) TCPConnection
+        +wrap_socket(Socket sock) TCPConnection
+        +listen_to_connection(TCPConnection conn, callback)
         +send_to_node(String node_id, Message msg)
         +broadcast_to_all(Message msg)
     }
 
-  
     class ServerNode {
         +String server_id
         +String ip_address
         +int port
-        +ServerState state
         +String leader_id
         +RingNeighbor left_neighbor
         +RingNeighbor right_neighbor
-        +Map~String, Room~ managed_rooms
-        --
         +start()
+        +run()
         +handle_discovery()
-        +handle_join()
+        +handle_join(Socket sock, Addr addr)
         +process_message(Message msg)
     }
 
@@ -84,49 +85,58 @@
     }
 
     class ElectionModule {
-        +String candidate_id
-        +start_election()
-        +handle_election_message(Message msg)
-        -hirschberg_sinclair_algo()
+        +ServerNode Node
+        +int k
+        +int reply_counter
+        +ConstructElectionMessage(id, k, d)
+        +ConstructReplyMessage(id, k)
+        +ConstructLeaderAnnoucementMessage(id)
+        +ParseMessage(Message msg)
+        +handle_message(Message msg, ConnectionManager cm)
+        +start_election(ConnectionManager cm)
     }
 
     class FailureDetector {
-        +start_monitoring(Map~String, Node~ nodes)
-        +send_heartbeat()
-        +check_timeouts()
-        +on_failure_detected(String failed_node_id)
+        +ServerNode Node
+        +String type
+        +Map timers
+        +send_heartbeat(ConnectionManager cm, MetadataStore ms)
+        +start_monitoring(ConnectionManager cm)
+        +resetTimer(id, type)
+        +on_failure_detected(typeid, ConnectionManager cm)
+        +check_timeouts(ConnectionManager cm)
     }
 
     class MetadataStore {
         +Map~String, String~ room_locations
-        +Map~String, ClientInfo~ active_clients
-        +sync_with_leader()
-        +update_metadata()
+        +handle_message(Message msg)
+        +update_metadata(String room_id, ServerNode server, ConnectionManager cm)
+        +sync_with_leader(TCPConnection peer, String id)
     }
 
     class CausalMulticastHandler {
-        +VectorClock local_clock
-        +List~Message~ hold_back_queue
-        +deliver_message(Message msg)
-        +multicast(Message msg)
-        -check_delivery_condition()
+        +handle_chat_message(Message msg, Room room)
+        -deliver_and_multicast(Message msg, Room room)
+        -check_queue_recursively(Room room)
+        +multicast(Message msg, Room room)
     }
 
     class ChatClient {
         +String client_id
         +String username
         +TCPConnection server_connection
-        +VectorClock client_clock
-        +start()
-        +discover_server()
+        +start(String ip, int port)
+        +discover_server(int port, callback)
         +join_room(String room_id)
-        +send_message(String content)
+        +send_message(String content, String room_id)
         +receive_message(Message msg)
     }
 
-
     Message *-- VectorClock
     Message *-- MessageType
+    
+    Room *-- VectorClock
+    Room o-- Message
     
     ServerNode *-- ConnectionManager
     ServerNode *-- ElectionModule
@@ -134,10 +144,13 @@
     ServerNode *-- MetadataStore
     ServerNode *-- CausalMulticastHandler
     ServerNode o-- Room
-    ServerNode --> UDPHandler : uses
+    ServerNode *-- UDPHandler
+    ServerNode o-- ServerState
+    
+    ConnectionManager o-- TCPConnection
 
     ChatClient *-- ConnectionManager
-    ChatClient --> UDPHandler : uses
+    ChatClient *-- VectorClock
+    ChatClient *-- UDPHandler
     
-    ElectionModule ..> ConnectionManager : sends votes
-    CausalMulticastHandler ..> ConnectionManager : sends chats
+    CausalMulticastHandler ..> Room : modifies
