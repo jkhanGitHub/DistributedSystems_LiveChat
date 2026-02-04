@@ -29,6 +29,9 @@ class VectorClock:
     def increment(self, node_id: NodeId):
         self.timestamps[node_id] = self.timestamps.get(node_id, 0) + 1
 
+    def decrement(self, node_id: NodeId):
+        self.timestamps[node_id] = self.timestamps.get(node_id, 0) - 1
+
     def merge(self, other: 'VectorClock'):
         for node, count in other.timestamps.items():
             self.timestamps[node] = max(self.timestamps.get(node, 0), count)
