@@ -9,7 +9,9 @@ class MessageType(Enum):
     JOIN_ROOM = "JOIN_ROOM"
     LEAVE_ROOM = "LEAVE_ROOM"
     CHAT = "CHAT"
-    DISCOVERY = "DISCOVERY"
+    DISCOVERY_REQUEST = "DISCOVERY_REQUEST"
+    DISCOVERY_RESPONSE = "DISCOVERY_RESPONSE"
+    SERVER_DISCOVERY = "SERVER_DISCOVERY"
     ELECTION = "ELECTION"
     HEARTBEAT = "HEARTBEAT"
     SYNC = "SYNC"
@@ -93,6 +95,7 @@ class Message:
     sender_id: NodeId = ""
     room_id: str = ""
     vector_clock: VectorClock = field(default_factory=VectorClock)
+    sender_addr: Optional[tuple[str,int]] = None
 
     def serialize(self) -> str:
         # Skeleton implementation

@@ -1,4 +1,6 @@
 from typing import Optional
+import time
+import json
 from ..domain.models import (
     VectorClock,
     Message,
@@ -12,6 +14,7 @@ class ChatClient:
     def __init__(self, username: str, client_id: Optional[NodeId] = None):
         self.client_id = client_id or generate_node_id()
         self.username = username
+        self.discovery_active = False
 
         self.server_connection: Optional[TCPConnection] = None
         self.client_clock = VectorClock()
@@ -24,7 +27,12 @@ class ChatClient:
         """
         Connect to server and start receiving messages.
         """
-        self.server_connection = self.connection_manager.connect_to(ip, port)
+        try:
+            self.server_connection = self.connection_manager.connect_to(ip, port)
+        except Exception as e:
+            print("[Client] Failed to connect:", e)
+            self.discovery_active = False
+            return
 
         # Send JOIN message so server can register us
         join_msg = Message(
@@ -42,17 +50,47 @@ class ChatClient:
         print(f"[Client {self.client_id}] connected to {ip}:{port}")
 
     # Discovery
-    def discover_server(self, discovery_port: int, callback):
+    def discover_server(self, discovery_port: int):
         """
         Discover servers via UDP.
         """
+        if self.discovery_active:
+            return
+        
+        self.discovery_active = True
+
+        self.udp_handler.listen(0, self.on_server_discovered)
+
         discovery_msg = Message(
-            type=MessageType.DISCOVERY,
+            type=MessageType.DISCOVERY_REQUEST,
             sender_id=self.client_id,
         )
 
-        self.udp_handler.broadcast(discovery_msg, discovery_port)
-        self.udp_handler.listen(discovery_port, callback)
+
+        for _ in range(3):
+            print("[Client] sending discovery broadcast")
+            self.udp_handler.broadcast(discovery_msg, discovery_port)
+            time.sleep(0.2)
+
+    def on_server_discovered(self, msg: Message):
+        if not self.discovery_active:
+            return
+        
+        if self.server_connection is not None:
+            return
+        
+        if msg.type != MessageType.DISCOVERY_RESPONSE:
+            return
+        
+        data = json.loads(msg.content)
+        ip = data["ip"]
+        port = data["port"]
+        print(f"[Client {self.client_id}] discovered server "
+              f"{msg.sender_id} at {ip}:{port}")
+
+        self.discovery_active = False
+        self.start(ip, port)
+
 
     # Chat protocol
     def join_room(self, room_id: str):

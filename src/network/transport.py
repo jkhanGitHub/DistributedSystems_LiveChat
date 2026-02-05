@@ -1,5 +1,6 @@
 import socket
 import threading
+import json
 from typing import Callable, Dict, Optional
 
 from ..domain.models import Message
@@ -9,22 +10,30 @@ class UDPHandler:
     def __init__(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        self.bound = False
 
     def broadcast(self, msg: Message, port: int):
         data = msg.serialize()
         self.socket.sendto(data, ("<broadcast>", port))
 
     def listen(self, port: int, callback: Callable[[Message], None]):
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) #Added resusddr
-        self.socket.bind(("", port))
+        if not self.bound:
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) #Added resusddr
+            self.socket.bind(("", port))
+            self.bound = True
 
         def loop():
             while True:
-                data, _ = self.socket.recvfrom(4096)
+                data, addr = self.socket.recvfrom(4096)
                 msg = Message.deserialize(data)
+                msg.sender_addr = addr
                 callback(msg)
 
         threading.Thread(target=loop, daemon=True).start()
+
+    def send_to(self, msg: Message, addr):
+        data = msg.serialize()
+        self.socket.sendto(data, addr)
 
 # TCP CONNECTION
 class TCPConnection:
