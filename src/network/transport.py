@@ -65,7 +65,6 @@ class TCPConnection:
     def stringify(self):
         return str(self.ip) + ' ' + str(self.port)
 
-
 # CONNECTION MANAGER
 class ConnectionManager:
     def __init__(self):
@@ -81,9 +80,12 @@ class ConnectionManager:
 
     # ---------- connection helpers ----------
 
-
-
     def wrap_socket(self, sock: socket.socket, ip = '127.0.0.1', port = 5001) -> TCPConnection:
+        return TCPConnection(sock,ip,port)
+    
+    def connect_to(self, ip: str, port: int) -> TCPConnection:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((ip, port))
         return TCPConnection(sock,ip,port)
 
     # ---------- async receive ----------
