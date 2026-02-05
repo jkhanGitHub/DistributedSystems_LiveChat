@@ -8,7 +8,6 @@ from ..domain.models import (
 )
 from ..network.transport import TCPConnection, UDPHandler, ConnectionManager
 
-
 class ChatClient:
     def __init__(self, username: str, client_id: Optional[NodeId] = None):
         self.client_id = client_id or generate_node_id()

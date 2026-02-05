@@ -198,7 +198,7 @@ class ServerNode:
                 self._handle_join_room(msg)
 
             case MessageType.UPDATE_NEIGHBOUR:
-                self.update_neighbour_id(msg):
+                self.update_neighbour_id(msg)
 
             case _:
                 print(

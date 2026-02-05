@@ -83,7 +83,7 @@ class ConnectionManager:
 
 
 
-    def wrap_socket(self, sock: socket.socket, ip = '127.0.0.1'. port = 5001) -> TCPConnection:
+    def wrap_socket(self, sock: socket.socket, ip = '127.0.0.1', port = 5001) -> TCPConnection:
         return TCPConnection(sock,ip,port)
 
     # ---------- async receive ----------
