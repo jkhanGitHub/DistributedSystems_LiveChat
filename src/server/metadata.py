@@ -26,7 +26,7 @@ class MetadataStore:
                 ip = m[2]
                 port = m[3]
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                ConnectionManagerObject.active_connections_peer_to_peer[i] = ConnectionManagerObject.wrap_socket(sock,ip,port)
+                ConnectionManagerObject.active_connections_peer_to_peer[i] = ConnectionManagerObject.wrap_socket(sock,ip,port))
             #print(self.room_locations)
         elif "Sync " in m:
             if "Room" in m:
@@ -41,7 +41,7 @@ class MetadataStore:
                     port = ipport[1]
                     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     #Store it as a TCPConnection object instead of ip and port
-                    ConnectionManagerObject.active_connections_peer_to_peer[i] = ConnectionManagerObject.wrap_socket(sock,ip,port)
+                    ConnectionManagerObject.active_connections_peer_to_peer[i] = ConnectionManagerObject.wrap_socket(sock,ip,port))
 
             #print(self.room_locations)
             #print(ConnectionManagerObject.active_connections_peer_to_peer)
