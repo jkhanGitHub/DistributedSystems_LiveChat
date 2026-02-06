@@ -16,9 +16,17 @@ class MetadataStore:
     def handle_message(self,message, ConnectionManagerObject):
         m = message.content
         if "Update" in m:
-            m = m.split()
-            room_id = m[1]
-            self.room_locations[room_id] = message.sender_id
+            if 'Room' in m:
+                m = m.split()
+                room_id = m[2]
+                self.room_locations[room_id] = message.sender_id
+            elif 'Connections' in m:
+                m = m.split()
+                server_id = m[2]
+                ip = m[2]
+                port = m[3]
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                ConnectionManagerObject.active_connections_peer_to_peer[i] = ConnectionManagerObject.wrap_socket(sock,ip,port)
             #print(self.room_locations)
         elif "Sync " in m:
             if "Room" in m:
@@ -33,7 +41,7 @@ class MetadataStore:
                     port = ipport[1]
                     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     #Store it as a TCPConnection object instead of ip and port
-                    ConnectionManagerObject.active_connections_peer_to_peer[i] = ConnectionManagerObject.wrap_socket(sock,ip,port))
+                    ConnectionManagerObject.active_connections_peer_to_peer[i] = ConnectionManagerObject.wrap_socket(sock,ip,port)
 
             #print(self.room_locations)
             #print(ConnectionManagerObject.active_connections_peer_to_peer)
@@ -44,7 +52,12 @@ class MetadataStore:
         #Update within the server instance first. Will be also done redundantly with the sync_with_leader() function
         self.room_locations[room_id] = server.server_id
         if server.state != ServerState.LEADER.value:
-            m = Message(content = "Update " + str(room_id), sender_id = server.server_id, type = MessageType.METADATA_UPDATE.value)
+            m = Message(content = "Update Room " + str(room_id), sender_id = server.server_id, type = MessageType.METADATA_UPDATE.value)
+            ConnectionManagerObject.send_to_node(server.leader_id, m)
+
+    def update_globalview(self, ConnectionManagerObject, server, server_id):
+        if server.state != ServerState.LEADER.value:
+            m = Message(content = "Update Connections " + str(server_id) + ' ' + ConnectionManagerObject.active_connections_peer_to_peer[server_id].stringify(), sender_id = server.server_id, type = MessageType.METADATA_UPDATE.value)
             ConnectionManagerObject.send_to_node(server.leader_id, m)
 
     #To be called by the leader server
