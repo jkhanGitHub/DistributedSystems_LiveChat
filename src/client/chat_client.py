@@ -132,9 +132,14 @@ class ChatClient:
         )
 
         if self.server_connection:
-            self.server_connection.send(msg)
+            try:
+                self.server_connection.send(msg)
+            except:
+                print("[Client] Not connected, Message not sent")
+                self.client_clock.decrement(self.client_id)
         else:
-            print("[Client] Not connected")
+            print("[Client] Not connected, Message not sent")
+            self.client_clock.decrement(self.client_id)
 
     # Receive
     def receive_message(self, msg: Message):
