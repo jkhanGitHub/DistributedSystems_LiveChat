@@ -7,21 +7,21 @@ from ..domain.models import Message
 
 # UDP TRANSPORT
 class UDPHandler:
-    def __init__(self, port: Optional[int] = None):
+    def __init__(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-
-        if port is None:
-            self.socket.bind(("", 0))  # OS assigns port
-        else:
-            self.socket.bind(("", port))
-
-        self.port = self.socket.getsockname()[1]
+        self.bound = False
 
     def broadcast(self, msg: Message, port: int):
-        self.socket.sendto(msg.serialize(), ("<broadcast>", port))
+        data = msg.serialize()
+        self.socket.sendto(data, ("<broadcast>", port))
 
-    def listen(self, callback: Callable[[Message], None]):
+    def listen(self, port: int, callback: Callable[[Message], None]):
+        if not self.bound:
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) #Added resusddr
+            self.socket.bind(("", port))
+            self.bound = True
+
         def loop():
             while True:
                 data, addr = self.socket.recvfrom(4096)
@@ -32,7 +32,8 @@ class UDPHandler:
         threading.Thread(target=loop, daemon=True).start()
 
     def send_to(self, msg: Message, addr):
-        self.socket.sendto(msg.serialize(), addr)
+        data = msg.serialize()
+        self.socket.sendto(data, addr)
 
 # TCP CONNECTION
 class TCPConnection:

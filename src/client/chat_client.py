@@ -9,7 +9,6 @@ from ..domain.models import (
     generate_node_id,
 )
 from ..network.transport import TCPConnection, UDPHandler, ConnectionManager
-from ..network.constants import DISCOVERY_PORT
 
 class ChatClient:
     def __init__(self, username: str, client_id: Optional[NodeId] = None):
@@ -51,7 +50,7 @@ class ChatClient:
         print(f"[Client {self.client_id}] connected to {ip}:{port}")
 
     # Discovery
-    def discover_server(self):
+    def discover_server(self, discovery_port: int):
         """
         Discover servers via UDP.
         """
@@ -60,19 +59,17 @@ class ChatClient:
         
         self.discovery_active = True
 
-        self.udp_handler.listen(self.on_server_discovered)
+        self.udp_handler.listen(0, self.on_server_discovered)
 
         discovery_msg = Message(
             type=MessageType.DISCOVERY_REQUEST,
             sender_id=self.client_id,
         )
 
-        for _ in range(3):
-            if not self.discovery_active:
-                break
 
+        for _ in range(3):
             print("[Client] sending discovery broadcast")
-            self.udp_handler.broadcast(discovery_msg, DISCOVERY_PORT)
+            self.udp_handler.broadcast(discovery_msg, discovery_port)
             time.sleep(0.2)
 
     def on_server_discovered(self, msg: Message):
@@ -88,13 +85,8 @@ class ChatClient:
         data = json.loads(msg.content)
         ip = data["ip"]
         port = data["port"]
-
-        if ip == "0.0.0.0":
-            ip = "127.0.0.1"
-
         print(f"[Client {self.client_id}] discovered server "
               f"{msg.sender_id} at {ip}:{port}")
-        print("DISCOVERY PAYLOAD:", msg.content)
 
         self.discovery_active = False
         self.start(ip, port)

@@ -3,6 +3,7 @@ import sys
 import time
 from src.client.chat_client import ChatClient
 
+DISCOVERY_PORT = 5001
 DISCOVERY_TIMEOUT = 5 # seconds
 
 if __name__ == "__main__":
@@ -15,7 +16,7 @@ if __name__ == "__main__":
         client.start(ip, port)
     else:
         print("[Client] discovering server...")
-        client.discover_server()
+        client.discover_server(DISCOVERY_PORT)
 
         start_time = time.time()
         while client.server_connection is None:
