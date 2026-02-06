@@ -12,22 +12,10 @@ class MetadataStore:
 
     def __init__(self, room_locations = {}):
         self.room_locations = room_locations
-        self.ring = [] # for ring
-        self.server = {} # for ring
-
+        
     #To be called by the process_message method if the message type is METADATA_UPDATE
     def handle_message(self,message, ConnectionManagerObject):
         m = message.content
-
-        # Server discovery metadata
-        try:
-            data = json.loads(m)
-            if "ip" in data and "port" in data:
-                self.servers[message.sender_id] = data
-                self._recompute_ring()
-                return
-        except:
-            pass
 
         if "Update" in m:
             if 'Room' in m:
@@ -40,7 +28,7 @@ class MetadataStore:
                 ip = m[2]
                 port = m[3]
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                ConnectionManagerObject.active_connections_peer_to_peer[i] = ConnectionManagerObject.wrap_socket(sock,ip,port)
+                ConnectionManagerObject.active_connections_peer_to_peer[server_id] = ConnectionManagerObject.wrap_socket(sock,ip,port)
             #print(self.room_locations)
         elif "Sync " in m:
             if "Room" in m:
@@ -81,26 +69,5 @@ class MetadataStore:
         m = Message(content = "Sync Connections" + ConnectionManagerObject.stringify(), sender_id = id, type = MessageType.METADATA_UPDATE.value)
         peer.send(m)
 
-    #Recompute ring
-    def _recompute_ring(self):
-        ids = sorted(self.servers.keys())
-
-        if not ids:
-            return
-
-        self.ring = ids
-        print("[Metadata] ring:", self.ring)
-
-    #Neighbor lookup
-    def get_neighbors(self, my_id):
-        if not self.ring or my_id not in self.ring:
-            return None, None
-
-        idx = self.ring.index(my_id)
-
-        left = self.ring[(idx + 1) % len(self.ring)]
-        right = self.ring[(idx - 1) % len(self.ring)]
-
-        return left, right
 
 

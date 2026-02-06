@@ -25,6 +25,8 @@ class ServerNode:
         self.server_id = server_id
         self.ip_address = "127.0.0.1"
         self.port = port
+        self.servers: Dict[str, dict] = {}
+        self.ring = []
 
         # logical state
         self.state = ServerState.LOOKING
@@ -87,13 +89,10 @@ class ServerNode:
                 self._handle_server_discovery(msg)
 
             case MessageType.METADATA_UPDATE:
-                self.metadata_store.handle_message(msg, self.connection_manager)
-                left, right = self.metadata_store.get_neighbors(self.server_id)
-
-                print(f"[Server {self.server_id}] ring neighbors:")
-                print(" left =", left)
-                print(" right =", right)
-
+                    data = json.loads(msg.content)
+                    if "ip" in data and "port" in data:
+                        self.servers[msg.sender_id] = data
+                        self._recompute_ring()
             # -------- client → server discovery --------
             case MessageType.DISCOVERY_REQUEST:
                 self._handle_client_discovery(msg)
@@ -115,6 +114,15 @@ class ServerNode:
         print(
             f"[Server {self.server_id}] discovered peer server {msg.sender_id}"
         )
+        peer_ip = msg.sender_addr[0]
+
+        # avoid duplicates
+        if msg.sender_id not in self.connection_manager.active_connections_peer_to_peer:
+            dummy_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            conn = self.connection_manager.wrap_socket(dummy_sock, peer_ip, 0)
+            self.connection_manager.active_connections_peer_to_peer[msg.sender_id] = conn
+
+        self._recompute_ring()
 
         response = Message(
             type=MessageType.METADATA_UPDATE,
@@ -127,8 +135,7 @@ class ServerNode:
 
         print(
         f"[Server {self.server_id}] sending METADATA_UPDATE "
-        f"ip={self.ip_address} port={self.port}"
-)
+        f"ip={self.ip_address} port={self.port}")
 
         self.udp_handler.broadcast(response, DISCOVERY_PORT)
 
@@ -178,6 +185,18 @@ class ServerNode:
 
         self.connection_manager.listen_to_connection(conn, self.process_message)
 
+    #Neighbor lookup
+    def get_neighbors(self, my_id):
+        if not self.ring or my_id not in self.ring:
+            return None, None
+
+        idx = self.ring.index(my_id)
+
+        left = self.ring[(idx + 1) % len(self.ring)]
+        right = self.ring[(idx - 1) % len(self.ring)]
+
+        return left, right
+
     # chat / control plane
 
     def _handle_join_room(self, msg: Message):
@@ -193,6 +212,37 @@ class ServerNode:
         print(
             f"[Server {self.server_id}] client {client_id} joined room {room_id}"
         )
+
+    def _recompute_ring(self):
+        import socket
+
+        members = []
+
+        # include self
+        members.append(self.ip_address)
+
+        # include discovered peers
+        for conn in self.connection_manager.active_connections_peer_to_peer.values():
+            members.append(conn.ip)
+
+        members = list(set(members))
+
+        if len(members) <= 1:
+            return
+
+        binary_ring = sorted(socket.inet_aton(m) for m in members)
+        ring = [socket.inet_ntoa(n) for n in binary_ring]
+
+        idx = ring.index(self.ip_address)
+        left = ring[(idx + 1) % len(ring)]
+        right = ring[(idx - 1) % len(ring)]
+
+        print(f"[Server {self.server_id}] ring:")
+        print(" members:", ring)
+        print(" left:", left)
+        print(" right:", right)
+
+
 
     def update_neighbour_id(self, msg: Message):
         if self.left_neighbor and msg.sender_id == self.left_neighbor.id:
