@@ -11,7 +11,7 @@ from .failure_detector import FailureDetector
 from .metadata import MetadataStore
 from .multicast import CausalMulticastHandler
 from .server_state import ServerState
-
+from ..network.constants import DISCOVERY_PORT
 
 @dataclass
 class RingNeighbor:
@@ -23,7 +23,7 @@ class RingNeighbor:
 class ServerNode:
     def __init__(self, server_id: str, ip_address: str, port: int):
         self.server_id = server_id
-        self.ip_address = ip_address
+        self.ip_address = "127.0.0.1"
         self.port = port
 
         # logical state
@@ -39,7 +39,7 @@ class ServerNode:
 
         # components
         self.connection_manager = ConnectionManager()
-        self.udp_handler = UDPHandler()
+        self.udp_handler = UDPHandler(DISCOVERY_PORT)
         self.election_module = ElectionModule(self)
         self.failure_detector = FailureDetector(self)
         self.metadata_store = MetadataStore()
@@ -65,8 +65,11 @@ class ServerNode:
         )
 
         # ---- UDP listener (shared) ----
-        self.udp_handler.listen(self.port, self._handle_udp_message)
-        print(f"[Server {self.server_id}] UDP discovery listening on {self.port}")
+        print(f"[Server {self.server_id}] UDP discovery listening on {DISCOVERY_PORT}")
+        self.udp_handler.listen(self._handle_udp_message)
+
+        print(f"[Server {self.server_id}] TCP service port: {self.port}")
+        print(f"[Server {self.server_id}] UDP discovery port: {DISCOVERY_PORT}")
 
         # ---- server gossip bootstrap ----
         self._broadcast_server_discovery()
@@ -103,14 +106,14 @@ class ServerNode:
             type=MessageType.SERVER_DISCOVERY,
             sender_id=self.server_id,
         )
-        self.udp_handler.broadcast(msg, self.port)
+        self.udp_handler.broadcast(msg, DISCOVERY_PORT)
 
     def _handle_server_discovery(self, msg: Message):
         print(
             f"[Server {self.server_id}] discovered peer server {msg.sender_id}"
         )
 
-        response = Message(
+        msg = Message(
             type=MessageType.METADATA_UPDATE,
             sender_id=self.server_id,
             content=json.dumps({
@@ -118,20 +121,20 @@ class ServerNode:
                 "port": self.port,
             }),
         )
-
-        self.udp_handler.broadcast(response, self.port)
+        self.udp_handler.broadcast(msg, DISCOVERY_PORT)
 
     # client → server discovery 
 
     def _handle_client_discovery(self, msg: Message):
         print(f"[Server {self.server_id}] replying to client discovery")
+
         client_ip = msg.sender_addr[0]
         response = Message(
             type=MessageType.DISCOVERY_RESPONSE,
             sender_id=self.server_id,
             content=json.dumps({
-                "ip": client_ip,
-                "port": self.port,
+                "ip": self.ip_address, # server ip
+                "port": self.port, # server tcp port
             }),
         )
         
