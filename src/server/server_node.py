@@ -88,11 +88,6 @@ class ServerNode:
             case MessageType.SERVER_DISCOVERY:
                 self._handle_server_discovery(msg)
 
-            case MessageType.METADATA_UPDATE:
-                    data = json.loads(msg.content)
-                    if "ip" in data and "port" in data:
-                        self.servers[msg.sender_id] = data
-                        self._recompute_ring()
             # -------- client → server discovery --------
             case MessageType.DISCOVERY_REQUEST:
                 self._handle_client_discovery(msg)
@@ -261,6 +256,13 @@ class ServerNode:
                         f"[Server {self.server_id}] "
                         f"room {msg.room_id} not found"
                     )
+
+            case MessageType.METADATA_UPDATE:
+                data = json.loads(msg.content)
+
+                if "ip" in data and "port" in data:
+                    self.servers[msg.sender_id] = data
+                    self._recompute_ring()
 
             case MessageType.ELECTION:
                 self.election_module.handle_message(msg)
