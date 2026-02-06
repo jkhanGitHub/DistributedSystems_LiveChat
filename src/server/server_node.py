@@ -23,7 +23,7 @@ class RingNeighbor:
 class ServerNode:
     def __init__(self, server_id: str, ip_address: str, port: int):
         self.server_id = server_id
-        self.ip_address = ip_address
+        self.ip_address = "127.0.0.1"
         self.port = port
 
         # logical state
@@ -99,6 +99,7 @@ class ServerNode:
     # server ↔ server discovery
 
     def _broadcast_server_discovery(self):
+        print(f"[Server {self.server_id}] broadcasting SERVER_DISCOVERY")
         msg = Message(
             type=MessageType.SERVER_DISCOVERY,
             sender_id=self.server_id,
@@ -119,6 +120,11 @@ class ServerNode:
             }),
         )
 
+        print(
+        f"[Server {self.server_id}] sending METADATA_UPDATE "
+        f"ip={self.ip_address} port={self.port}"
+)
+
         self.udp_handler.broadcast(response, DISCOVERY_PORT)
 
     # client → server discovery 
@@ -130,9 +136,13 @@ class ServerNode:
             type=MessageType.DISCOVERY_RESPONSE,
             sender_id=self.server_id,
             content=json.dumps({
-                "ip": client_ip,
+                "ip": self.ip_address,
                 "port": self.port,
             }),
+        )
+        print(
+            f"[Server {self.server_id}] responding to client "
+            f"{msg.sender_id} at {msg.sender_addr}"
         )
         
         self.udp_handler.send_to(response, msg.sender_addr)

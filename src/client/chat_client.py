@@ -9,7 +9,7 @@ from ..domain.models import (
     generate_node_id,
 )
 from ..network.transport import TCPConnection, UDPHandler, ConnectionManager
-
+from ..network.constants import (DISCOVERY_PORT,DISCOVERY_INTERVAL,DISCOVERY_RETRIES)
 class ChatClient:
     def __init__(self, username: str, client_id: Optional[NodeId] = None):
         self.client_id = client_id or generate_node_id()
@@ -66,11 +66,13 @@ class ChatClient:
             sender_id=self.client_id,
         )
 
+        for _ in range(DISCOVERY_RETRIES):
+            if not self.discovery_active:
+                break
 
-        for _ in range(3):
             print("[Client] sending discovery broadcast")
             self.udp_handler.broadcast(discovery_msg, discovery_port)
-            time.sleep(0.2)
+            time.sleep(DISCOVERY_INTERVAL)
 
     def on_server_discovered(self, msg: Message):
         if not self.discovery_active:
@@ -85,6 +87,8 @@ class ChatClient:
         data = json.loads(msg.content)
         ip = data["ip"]
         port = data["port"]
+        if ip == "0.0.0.0":
+            ip = "127.0.0.1"
         print(f"[Client {self.client_id}] discovered server "
               f"{msg.sender_id} at {ip}:{port}")
 
