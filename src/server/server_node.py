@@ -88,6 +88,11 @@ class ServerNode:
 
             case MessageType.METADATA_UPDATE:
                 self.metadata_store.handle_message(msg, self.connection_manager)
+                left, right = self.metadata_store.get_neighbors(self.server_id)
+
+                print(f"[Server {self.server_id}] ring neighbors:")
+                print(" left =", left)
+                print(" right =", right)
 
             # -------- client → server discovery --------
             case MessageType.DISCOVERY_REQUEST:
