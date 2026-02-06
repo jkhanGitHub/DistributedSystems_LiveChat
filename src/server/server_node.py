@@ -11,7 +11,7 @@ from .failure_detector import FailureDetector
 from .metadata import MetadataStore
 from .multicast import CausalMulticastHandler
 from .server_state import ServerState
-
+from ..network.constants import DISCOVERY_PORT
 
 @dataclass
 class RingNeighbor:
@@ -65,7 +65,7 @@ class ServerNode:
         )
 
         # ---- UDP listener (shared) ----
-        self.udp_handler.listen(self.port, self._handle_udp_message)
+        self.udp_handler.listen(DISCOVERY_PORT, self._handle_udp_message)
         print(f"[Server {self.server_id}] UDP discovery listening on {self.port}")
 
         # ---- server gossip bootstrap ----
@@ -103,7 +103,7 @@ class ServerNode:
             type=MessageType.SERVER_DISCOVERY,
             sender_id=self.server_id,
         )
-        self.udp_handler.broadcast(msg, self.port)
+        self.udp_handler.broadcast(msg, DISCOVERY_PORT)
 
     def _handle_server_discovery(self, msg: Message):
         print(
@@ -119,7 +119,7 @@ class ServerNode:
             }),
         )
 
-        self.udp_handler.broadcast(response, self.port)
+        self.udp_handler.broadcast(response, DISCOVERY_PORT)
 
     # client → server discovery 
 

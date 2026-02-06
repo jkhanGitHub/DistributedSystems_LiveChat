@@ -3,7 +3,7 @@ import sys
 import time
 from src.client.chat_client import ChatClient
 
-DISCOVERY_PORT = 5001
+DISCOVERY_PORT = 6000
 DISCOVERY_TIMEOUT = 5 # seconds
 
 if __name__ == "__main__":
