@@ -21,7 +21,6 @@ class RingNeighbor:
     ip: str
     port: int
 
-
 class ServerNode:
     def __init__(self, server_id: str, ip_address: str, port: int):
         self.server_id = server_id
@@ -72,9 +71,10 @@ class ServerNode:
         self.udp_handler.listen(DISCOVERY_PORT, self._handle_udp_message)
         print(f"[Server {self.server_id}] UDP discovery listening on {self.port}")
 
-        # ---- server gossip bootstrap ----
-        time.sleep(0.5) #delay for clusters to start listeners
-        self._start_server_gossip()
+        time.sleep(0.5) #d elay for clusters to start listeners
+        # ---- server gossip  
+        # self._start_server_gossip()
+        self._broadcast_server_discovery()
 
         while True:
             sock, addr = tcp_socket.accept()
@@ -88,7 +88,7 @@ class ServerNode:
             return
 
         match msg.type:
-            # -------- server ↔ server gossip --------
+            # -------- server ↔ server discovery --------
             case MessageType.SERVER_DISCOVERY:
                 self._handle_server_discovery(msg)
 
@@ -101,6 +101,7 @@ class ServerNode:
 
     # server ↔ server discovery
 
+    """ Gossip for server discovery used
     def _start_server_gossip(self):
         def loop():
             counter = 0
@@ -114,6 +115,7 @@ class ServerNode:
                 time.sleep(3)
 
         threading.Thread(target=loop, daemon=True).start()
+    """
 
     def _broadcast_server_discovery(self):
         print(f"[Server {self.server_id}] broadcasting SERVER_DISCOVERY")
@@ -266,7 +268,6 @@ class ServerNode:
         print(" members:", self.ring)
         print(" left:", left)
         print(" right:", right)
-
 
     def update_neighbour_id(self, msg: Message):
         if self.left_neighbor and msg.sender_id == self.left_neighbor.id:
