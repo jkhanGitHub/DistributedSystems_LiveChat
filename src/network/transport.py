@@ -14,12 +14,12 @@ class UDPHandler:
 
     def broadcast(self, msg: Message, port: int):
         data = msg.serialize()
-        self.socket.sendto(data, ("<broadcast>", port))
+        self.socket.sendto(data, ("<broadcast>", port)) # It was <broadcast> earlier
 
     def listen(self, port: int, callback: Callable[[Message], None]):
         if not self.bound:
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) #Added resusddr
-            self.socket.bind(("", port))
+            self.socket.bind(("", port)) #
             self.bound = True
 
         def loop():

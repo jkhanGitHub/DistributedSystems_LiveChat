@@ -24,7 +24,7 @@ class RingNeighbor:
 class ServerNode:
     def __init__(self, server_id: str, ip_address: str, port: int):
         self.server_id = server_id
-        self.ip_address = "127.0.0.1"
+        self.ip_address = self._get_local_ip() # It was "127.0.0.1"
         self.port = port
         self.servers: Dict[str, dict] = {}
         self.ring = []
@@ -59,7 +59,7 @@ class ServerNode:
         # ---- TCP listener ----
         tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         tcp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        tcp_socket.bind((self.ip_address, self.port))
+        tcp_socket.bind(("0.0.0.0", self.port)) # It was self.ip_address
         tcp_socket.listen()
 
         print(
@@ -69,7 +69,7 @@ class ServerNode:
 
         # ---- UDP listener (shared) ----
         self.udp_handler.listen(DISCOVERY_PORT, self._handle_udp_message)
-        print(f"[Server {self.server_id}] UDP discovery listening on {self.port}")
+        print(f"[Server {self.server_id}] UDP discovery listening on {DISCOVERY_PORT}")
 
         time.sleep(0.5) #d elay for clusters to start listeners
         # ---- server gossip  
@@ -84,8 +84,8 @@ class ServerNode:
     def _handle_udp_message(self, msg: Message):
         if msg.type != MessageType.SERVER_DISCOVERY: # To reduce spam
             print(f"[Server {self.server_id}] UDP received {msg.type}")
-        if msg.sender_id == self.server_id:
-            return
+        #if msg.sender_id == self.server_id:
+        #    return
 
         match msg.type:
             # -------- server ↔ server discovery --------
@@ -100,6 +100,15 @@ class ServerNode:
                 return
 
     # server ↔ server discovery
+
+    def _get_local_ip(self):
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+        finally:
+            s.close()
+        return ip
 
     """ Gossip for server discovery used
     def _start_server_gossip(self):
@@ -131,7 +140,7 @@ class ServerNode:
 
     def _handle_server_discovery(self, msg: Message):
 
-        if msg.sender_id == self.server_id:
+        if msg.sender_id == self.server_id: # 
             return
 
         if msg.sender_id in self.connection_manager.active_connections_peer_to_peer:
