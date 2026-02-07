@@ -66,7 +66,6 @@ class FailureDetector:
     #To be called whenever a heartbeat is received for a particular server
     def resetTimer(self, id, type):
         for i in self.timers.keys():
-            print(i)
             if i[1] == id:
                 if type == 'server':
                     self.timers[('server',id)] = timeit.default_timer()
@@ -81,6 +80,7 @@ class FailureDetector:
         me = self.Node
         type = typeid[0]
         id = typeid[1]
+        timers.pop(typeid, None)
         if type == 'server':
             if id == me.leader_id:
                 #spawn a new process here. So that there is failure detection during elections
