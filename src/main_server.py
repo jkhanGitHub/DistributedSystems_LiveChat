@@ -1,6 +1,7 @@
 import sys
-import os
+# import os
 from src.server.server_node import ServerNode
+import uuid
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
@@ -11,7 +12,7 @@ if __name__ == "__main__":
     port = int(sys.argv[1])
 
     server = ServerNode(
-        server_id=os.getpid(),
+        server_id=str(uuid.uuid4()), # It was os.getpid()
         ip_address="0.0.0.0",
         port=port,
     )
