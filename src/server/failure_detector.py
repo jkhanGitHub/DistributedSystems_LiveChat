@@ -80,7 +80,7 @@ class FailureDetector:
         me = self.Node
         type = typeid[0]
         id = typeid[1]
-        timers.pop(typeid, None)
+        self.timers.pop(typeid, None)
         if type == 'server':
             if id == me.leader_id:
                 #spawn a new process here. So that there is failure detection during elections
