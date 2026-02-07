@@ -3,6 +3,8 @@ from dataclasses import dataclass
 import socket
 import os
 import json
+import threading
+import time
 
 from ..domain.models import Room, Message, MessageType
 from ..network.transport import ConnectionManager, UDPHandler
@@ -71,7 +73,8 @@ class ServerNode:
         print(f"[Server {self.server_id}] UDP discovery listening on {self.port}")
 
         # ---- server gossip bootstrap ----
-        self._broadcast_server_discovery()
+        time.sleep(0.5) #delay for clusters to start listeners
+        self._start_server_gossip()
 
         while True:
             sock, addr = tcp_socket.accept()
@@ -79,7 +82,8 @@ class ServerNode:
 
     # UDP handling 
     def _handle_udp_message(self, msg: Message):
-        print(f"[Server {self.server_id}] UDP received {msg.type}")
+        if msg.type != MessageType.SERVER_DISCOVERY: # To reduce spam
+            print(f"[Server {self.server_id}] UDP received {msg.type}")
         if msg.sender_id == self.server_id:
             return
 
@@ -97,42 +101,77 @@ class ServerNode:
 
     # server ↔ server discovery
 
+    def _start_server_gossip(self):
+        def loop():
+            counter = 0
+            while True:
+                self._broadcast_server_discovery()
+                counter += 1
+
+                if counter % 5 == 0:
+                    print(f"[Server {self.server_id}] gossip heartbeat")
+
+                time.sleep(3)
+
+        threading.Thread(target=loop, daemon=True).start()
+
     def _broadcast_server_discovery(self):
         print(f"[Server {self.server_id}] broadcasting SERVER_DISCOVERY")
         msg = Message(
             type=MessageType.SERVER_DISCOVERY,
             sender_id=self.server_id,
+            content=json.dumps({
+            "ip": self.ip_address,
+            "port": self.port
+            }),
         )
         self.udp_handler.broadcast(msg, DISCOVERY_PORT)
 
     def _handle_server_discovery(self, msg: Message):
-        print(
-            f"[Server {self.server_id}] discovered peer server {msg.sender_id}"
-        )
-        peer_ip = msg.sender_addr[0]
 
-        # avoid duplicates
-        if msg.sender_id not in self.connection_manager.active_connections_peer_to_peer:
-            dummy_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            conn = self.connection_manager.wrap_socket(dummy_sock, peer_ip, 0)
+        if msg.sender_id == self.server_id:
+            return
+
+        if msg.sender_id in self.connection_manager.active_connections_peer_to_peer:
+            return
+        
+        print(f"[Server {self.server_id}] discovered peer server {msg.sender_id}")
+
+        try:
+            data = json.loads(msg.content)
+            peer_ip = data["ip"]
+            peer_port = data["port"]
+
+            conn = self.connection_manager.connect_to(peer_ip, peer_port)
+
             self.connection_manager.active_connections_peer_to_peer[msg.sender_id] = conn
 
-        self._recompute_ring()
+            print(
+                f"[Server {self.server_id}] TCP connected to peer "
+                f"{msg.sender_id} at {peer_ip}:{peer_port}"
+            )
 
-        response = Message(
-            type=MessageType.METADATA_UPDATE,
-            sender_id=self.server_id,
-            content=json.dumps({
-                "ip": self.ip_address,
-                "port": self.port,
-            }),
-        )
+            join_msg = Message(
+                type=MessageType.SERVER_JOIN,
+                sender_id=self.server_id,
+            )
+            conn.send(join_msg)
 
-        print(
-        f"[Server {self.server_id}] sending METADATA_UPDATE "
-        f"ip={self.ip_address} port={self.port}")
+            metadata_msg = Message(
+                type=MessageType.METADATA_UPDATE,
+                sender_id=self.server_id,
+                content=json.dumps({
+                    "ip": self.ip_address,
+                    "port": self.port,
+                }),
+            )
+            conn.send(metadata_msg)
 
-        self.udp_handler.broadcast(response, DISCOVERY_PORT)
+            self._recompute_ring()
+
+        except Exception as e:
+            print(f"[Server {self.server_id}] could not connect to peer:", e)
+
 
     # client → server discovery 
 
@@ -209,34 +248,24 @@ class ServerNode:
         )
 
     def _recompute_ring(self):
-        import socket
+        members = [self.server_id]
+        members.extend(self.connection_manager.active_connections_peer_to_peer.keys())
 
-        members = []
+        new_ring = sorted(set(members))
 
-        # include self
-        members.append(self.ip_address)
-
-        # include discovered peers
-        for conn in self.connection_manager.active_connections_peer_to_peer.values():
-            members.append(conn.ip)
-
-        members = list(set(members))
-
-        if len(members) <= 1:
+        if new_ring == self.ring:
             return
 
-        binary_ring = sorted(socket.inet_aton(m) for m in members)
-        ring = [socket.inet_ntoa(n) for n in binary_ring]
+        self.ring = new_ring
 
-        idx = ring.index(self.ip_address)
-        left = ring[(idx + 1) % len(ring)]
-        right = ring[(idx - 1) % len(ring)]
+        idx = self.ring.index(self.server_id)
+        left = self.ring[(idx + 1) % len(self.ring)]
+        right = self.ring[(idx - 1) % len(self.ring)]
 
-        print(f"[Server {self.server_id}] ring:")
-        print(" members:", ring)
+        print(f"[Server {self.server_id}] ring stabilized:")
+        print(" members:", self.ring)
         print(" left:", left)
         print(" right:", right)
-
 
 
     def update_neighbour_id(self, msg: Message):

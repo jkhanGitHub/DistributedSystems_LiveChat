@@ -6,6 +6,7 @@ from dataclasses import dataclass, field, asdict
 
 class MessageType(Enum):
     CLIENT_JOIN = "CLIENT_JOIN"
+    SERVER_JOIN = "SERVER_JOIN"
     JOIN_ROOM = "JOIN_ROOM"
     LEAVE_ROOM = "LEAVE_ROOM"
     CHAT = "CHAT"
