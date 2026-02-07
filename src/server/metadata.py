@@ -4,9 +4,7 @@ from ..network.transport import ConnectionManager
 from .server_state import ServerState
 import ast
 import json
-import socket
-from .ring import form_ring, get_neighbour
-
+import socket 
 class MetadataStore:
     room_locations = {}
 
