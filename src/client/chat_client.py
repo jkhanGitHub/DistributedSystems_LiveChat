@@ -148,6 +148,6 @@ class ChatClient:
         """
         self.client_clock.merge(msg.vector_clock)
         print(
-            f"[Client {self.client_id}] "
+            f"[Client {msg.sender_id}] "
             f"{msg.content}"
         )
