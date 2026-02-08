@@ -146,7 +146,8 @@ class ChatClient:
         """
         Handle incoming messages from server.
         """
+        self.client_clock.merge(msg.vector_clock)
         print(
             f"[Client {self.client_id}] "
-            f"received {msg.type.name}: {msg.content}"
+            f"{msg.content}"
         )

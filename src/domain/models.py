@@ -1,9 +1,9 @@
+from src.server.server_node import ServerNode 
 from enum import Enum, auto
 from typing import Dict, List, Optional
 import uuid
 import json
 from dataclasses import dataclass, field, asdict
-
 class MessageType(Enum):
     CLIENT_JOIN = "CLIENT_JOIN"
     SERVER_JOIN = "SERVER_JOIN"
@@ -132,6 +132,7 @@ class Message:
 
 @dataclass
 class Room:
+    host: ServerNode
     room_id: str
     client_ids: List[NodeId] = field(default_factory=list)
     message_history: List[Message] = field(default_factory=list)
