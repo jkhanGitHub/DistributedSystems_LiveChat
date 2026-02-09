@@ -178,16 +178,6 @@ class ServerNode:
             )
             conn.send(join_msg)
 
-            metadata_msg = Message(
-                type=MessageType.METADATA_UPDATE,
-                sender_id=self.server_id,
-                content=json.dumps({
-                    "ip": self.ip_address,
-                    "port": self.port,
-                }),
-            )
-            conn.send(metadata_msg)
-
             self._recompute_ring()
 
         except Exception as e:
@@ -227,6 +217,7 @@ class ServerNode:
 
         elif msg.type == MessageType.SERVER_JOIN:
             self._handle_server_join(msg, conn)
+            self._recompute_ring()
 
     def _handle_client_join(self, msg: Message, conn):
         self.connection_manager.active_connections_server_to_client[msg.sender_id] = conn
@@ -313,13 +304,6 @@ class ServerNode:
                         f"room {msg.room_id} not found"
                     )
 
-            case MessageType.METADATA_UPDATE:
-                data = json.loads(msg.content)
-
-                if "ip" in data and "port" in data:
-                    self.servers[msg.sender_id] = data
-                    self._recompute_ring()
-
             case MessageType.ELECTION:
                 self.election_module.handle_message(msg)
 
@@ -331,6 +315,9 @@ class ServerNode:
 
             case MessageType.UPDATE_NEIGHBOUR:
                 self.update_neighbour_id(msg)
+
+            case MessageType.METADATA_UPDATE:
+                self.metadata_store.handle_message(msg, self.connection_manager)
 
             case _:
                 print(
