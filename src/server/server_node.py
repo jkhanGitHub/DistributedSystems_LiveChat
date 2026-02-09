@@ -5,6 +5,8 @@ import os
 import json
 import threading
 import time
+import secrets
+import string
 
 from ..domain.models import Room, Message, MessageType
 from ..network.transport import ConnectionManager, UDPHandler
@@ -39,6 +41,9 @@ class ServerNode:
 
         # rooms
         self.managed_rooms: Dict[str, Room] = {}
+        # create a room in each server with name being a random 4 char string
+        random_id = "".join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(4))
+        self.create_room(random_id)
 
         # components
         self.connection_manager = ConnectionManager()
@@ -243,6 +248,13 @@ class ServerNode:
         return left, right
 
     # chat / control plane
+
+    def create_room(self, room_id: str) -> Room:
+        """Creates a new room with this node as the host."""
+        if room_id not in self.managed_rooms:
+            self.managed_rooms[room_id] = Room(host=self, room_id=room_id)
+            print(f"[Server {self.server_id}] created room {room_id}")
+        return self.managed_rooms[room_id]
 
     def _handle_join_room(self, msg: Message):
         room_id = msg.room_id
