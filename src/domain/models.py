@@ -92,6 +92,11 @@ class VectorClock:
                 
         return True
 
+    def copy(self):
+        return VectorClock(
+            timestamps=self.timestamps.copy()
+        )
+
 @dataclass
 class Message:
     type: MessageType
