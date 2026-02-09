@@ -24,7 +24,7 @@ class RingNeighbor:
     port: int
 
 class ServerNode:
-    def __init__(self, server_id: str, ip_address: str, port: int):
+    def __init__(self, server_id: str, ip_address: str, port: int, number_of_rooms: int):
         self.server_id = server_id
         self.ip_address = self._get_local_ip() # It was "127.0.0.1"
         self.port = port
@@ -42,12 +42,13 @@ class ServerNode:
         # rooms
         self.managed_rooms: Dict[str, Room] = {}
 
-        #TODO: create room through server prompt, for now this works.
+        # TODO: create room through server prompt, for now this works.
         # create a room in each server with name being a random 4 char string
-        random_id = "".join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(4))
-        temp_room = self.create_room(random_id)
-        #add room to managed rooms
-        self.managed_rooms[random_id] = temp_room
+        for i in range(self.number_of_rooms):
+            random_id = "".join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(4))
+            temp_room = self.create_room(random_id)
+            #add room to managed rooms
+            self.managed_rooms[random_id] = temp_room
 
         # components
         self.connection_manager = ConnectionManager()

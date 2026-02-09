@@ -29,5 +29,24 @@ class TestServerRoom(unittest.TestCase):
             self.assertEqual(len(room_id), 4)
             self.assertEqual(room.host, self.server)
 
+    def test_room_copy(self):
+        room_id = "copy-test"
+        room = self.server.create_room(room_id)
+        room.vector_clock.increment("node-1")
+        room.add_client("client-1")
+        
+        room_copy = room.copy()
+        
+        self.assertEqual(room_copy.room_id, room.room_id)
+        self.assertEqual(room_copy.client_ids, room.client_ids)
+        self.assertEqual(room_copy.vector_clock.timestamps, room.vector_clock.timestamps)
+        
+        # Verify it's a deep copy (for lists/dicts)
+        room_copy.add_client("client-2")
+        self.assertNotIn("client-2", room.client_ids)
+        
+        room_copy.vector_clock.increment("node-2")
+        self.assertNotIn("node-2", room.vector_clock.timestamps)
+
 if __name__ == "__main__":
     unittest.main()
