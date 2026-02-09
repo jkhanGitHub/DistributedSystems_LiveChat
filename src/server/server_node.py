@@ -26,10 +26,11 @@ class RingNeighbor:
 class ServerNode:
     def __init__(self, server_id: str, ip_address: str, port: int, number_of_rooms: int):
         self.server_id = server_id
-        self.ip_address = self._get_local_ip() # It was "127.0.0.1"
+        self.ip_address = self._get_local_ip() # It was "127.0.0.1" force_loopback=True
         self.port = port
         self.servers: Dict[str, dict] = {}
         self.ring = []
+        self.number_of_rooms = number_of_rooms
 
         # logical state
         self.state = ServerState.LOOKING
@@ -81,15 +82,17 @@ class ServerNode:
         self.udp_handler.listen(DISCOVERY_PORT, self._handle_udp_message)
         print(f"[Server {self.server_id}] UDP discovery listening on {DISCOVERY_PORT}")
 
-        time.sleep(0.5) #d elay for clusters to start listeners
+        time.sleep(0.5) # delay for clusters to start listeners
         # ---- server gossip  
         # self._start_server_gossip()
         self._broadcast_server_discovery()
 
         while True:
-            sock, addr = tcp_socket.accept()
-            self.handle_join(sock, addr)
-
+            try:
+                sock, addr = tcp_socket.accept()
+                self.handle_join(sock, addr)
+            except Exception as e:
+                print(f"[Server {self.server_id}] accept error:", e)
     # UDP handling 
     def _handle_udp_message(self, msg: Message):
         if msg.type != MessageType.SERVER_DISCOVERY: # To reduce spam
@@ -111,7 +114,10 @@ class ServerNode:
 
     # server ↔ server discovery
 
-    def _get_local_ip(self):
+    def _get_local_ip(self, force_loopback=True):
+        #if force_loopback:
+        #    return "127.0.0.1"
+
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             s.connect(("8.8.8.8", 80))
@@ -155,6 +161,10 @@ class ServerNode:
 
         if msg.sender_id in self.connection_manager.active_connections_peer_to_peer:
             return
+        
+        # Only higher-ID server connects to solve win10013 error
+        #if str(self.server_id) < str(msg.sender_id):
+        #    return
         
         print(f"[Server {self.server_id}] discovered peer server {msg.sender_id}")
 
@@ -207,17 +217,20 @@ class ServerNode:
     # TCP join handling
 
     def handle_join(self, sock: socket.socket, addr):
-        conn = self.connection_manager.wrap_socket(
-            sock, ip=addr[0], port=addr[1]
-        )
-        msg = conn.receive()
+        try:
+            conn = self.connection_manager.wrap_socket(
+                sock, ip=addr[0], port=addr[1]
+            )
+            msg = conn.receive()
 
-        if msg.type == MessageType.CLIENT_JOIN:
-            self._handle_client_join(msg, conn)
+            if msg.type == MessageType.CLIENT_JOIN:
+                self._handle_client_join(msg, conn)
 
-        elif msg.type == MessageType.SERVER_JOIN:
-            self._handle_server_join(msg, conn)
-            self._recompute_ring()
+            elif msg.type == MessageType.SERVER_JOIN:
+                self._handle_server_join(msg, conn)
+                self._recompute_ring()
+        except Exception as e:
+            print(f"[Server {self.server_id}] join error:", e)
 
     def _handle_client_join(self, msg: Message, conn):
         self.connection_manager.active_connections_server_to_client[msg.sender_id] = conn
