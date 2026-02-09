@@ -200,11 +200,11 @@ class ServerNode:
         print(f"[Server {self.server_id}] replying to client discovery")
         client_ip = msg.sender_addr[0]
         response = Message(
-            type=MessageType.DISCOVERY_RESPONSE,
+            type=MessageType.AVAILABLE_ROOMS,
             sender_id=self.server_id,
             content=json.dumps({
-                "ip": self.ip_address,
-                "port": self.port,
+                "client_ip": client_ip,
+                "client_port": msg.sender_addr[1],
             }),
         )
         print(
@@ -212,7 +212,9 @@ class ServerNode:
             f"{msg.sender_id} at {msg.sender_addr}"
         )
         
-        self.udp_handler.send_to(response, msg.sender_addr)
+        # self.udp_handler.send_to(response, msg.sender_addr)
+        # ask leader to communicate available rooms to client
+        self.connection_manager.active_connections_peer_to_peer[self.leader_id].send(response)
 
     # TCP join handling
 
@@ -275,6 +277,22 @@ class ServerNode:
             f"[Server {self.server_id}] client {client_id} joined room {room_id}"
         )
 
+    def _handle_available_rooms(self, msg: Message):
+        data = json.loads(msg.content)
+        client_ip = data["client_ip"]
+        client_port = data["client_port"]
+        content = json.dumps({
+            "rooms": self.metadata_store.room_locations
+        })
+        response = Message(
+            type=MessageType.AVAILABLE_ROOMS,
+            sender_id=self.server_id,
+            content=content,
+        )
+        print(f"[Server {self.server_id}] sending available rooms to {client_ip}:{client_port}")
+        self.udp_handler.send_to(response, (client_ip, client_port))
+        
+
     def _recompute_ring(self):
         members = [self.server_id]
         members.extend(self.connection_manager.active_connections_peer_to_peer.keys())
@@ -331,6 +349,9 @@ class ServerNode:
 
             case MessageType.UPDATE_NEIGHBOUR:
                 self.update_neighbour_id(msg)
+
+            case MessageType.AVAILABLE_ROOMS:
+                self._handle_available_rooms(msg)
 
             case _:
                 print(
