@@ -4,13 +4,13 @@ from ..network.transport import ConnectionManager
 from .server_state import ServerState
 import ast
 import json
-import socket 
+import socket
 class MetadataStore:
     room_locations = {}
 
     def __init__(self, room_locations = {}):
         self.room_locations = room_locations
-        
+
     #To be called by the process_message method if the message type is METADATA_UPDATE
     def handle_message(self,message, ConnectionManagerObject):
         m = message.content
@@ -51,21 +51,18 @@ class MetadataStore:
     def update_metadata(self, room_id, server, ConnectionManagerObject):
         #Update within the server instance first. Will be also done redundantly with the sync_with_leader() function
         self.room_locations[room_id] = server.server_id
-        if server.state != ServerState.LEADER.value:
-            m = Message(content = "Update Room " + str(room_id), sender_id = server.server_id, type = MessageType.METADATA_UPDATE.value)
+        if server.state != ServerState.LEADER:
+            m = Message(content = "Update Room " + str(room_id), sender_id = server.server_id, type = MessageType.METADATA_UPDATE)
             ConnectionManagerObject.send_to_node(server.leader_id, m)
 
     def update_globalview(self, ConnectionManagerObject, server, server_id):
-        if server.state != ServerState.LEADER.value:
-            m = Message(content = "Update Connections " + str(server_id) + ' ' + ConnectionManagerObject.active_connections_peer_to_peer[server_id].stringify(), sender_id = server.server_id, type = MessageType.METADATA_UPDATE.value)
+        if server.state != ServerState.LEADER:
+            m = Message(content = "Update Connections " + str(server_id) + ' ' + ConnectionManagerObject.active_connections_peer_to_peer[server_id].stringify(), sender_id = server.server_id, type = MessageType.METADATA_UPDATE)
             ConnectionManagerObject.send_to_node(server.leader_id, m)
 
     #To be called by the leader server
     def sync_with_leader(self, peer, id, ConnectionManagerObject):
-        m = Message(content = "Sync Room" + str(self.room_locations), sender_id = id, type = MessageType.METADATA_UPDATE.value)
+        m = Message(content = "Sync Room" + str(self.room_locations), sender_id = id, type = MessageType.METADATA_UPDATE)
         peer.send(m)
-        m = Message(content = "Sync Connections" + ConnectionManagerObject.stringify(), sender_id = id, type = MessageType.METADATA_UPDATE.value)
+        m = Message(content = "Sync Connections" + ConnectionManagerObject.stringify(), sender_id = id, type = MessageType.METADATA_UPDATE)
         peer.send(m)
-
-
-
