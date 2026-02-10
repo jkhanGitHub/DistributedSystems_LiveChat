@@ -12,7 +12,7 @@ if __name__ == "__main__":
     rooms = int(sys.argv[2]) if len(sys.argv) > 2 else 1 #Default 1 room
 
     server = ServerNode(
-        server_id=os.getpid(), # It was os.getpid() What about string?
+        server_id=str(os.getpid()), # It was os.getpid()
         ip_address="0.0.0.0",
         port=port,
         number_of_rooms=rooms,

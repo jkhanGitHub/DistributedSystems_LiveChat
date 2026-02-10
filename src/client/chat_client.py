@@ -93,12 +93,22 @@ class ChatClient:
 
         room_list = list(rooms.items())
 
+        if not room_list:
+            print("\nNo rooms available yet.")
+            print("Try again in a moment...")
+            self.discovery_active = True
+            return
+
         print("\nAvailable rooms:")
         for i, (room_id, server_id) in enumerate(room_list):
             print(f"{i}: {room_id} (server {server_id})")
 
-        choice = int(input("Select room: "))
-        room_id, server_id = room_list[choice]
+        try:
+            choice = int(input("Select room: "))
+            room_id, server_id = room_list[choice]
+        except (ValueError, IndexError):
+            print("Invalid selection.")
+            return
 
         ip = servers[str(server_id)]["ip"]
         port = servers[str(server_id)]["port"]
