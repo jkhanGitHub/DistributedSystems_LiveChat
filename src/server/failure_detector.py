@@ -51,7 +51,7 @@ class FailureDetector:
         self.timers = {}
         #Start the monitoring for the clients
         for i in me.managed_rooms.keys():
-            for j in managed_rooms[i].client_ids:
+            for j in me.managed_rooms[i].client_ids:
                 self.timers[('client',j)] = timeit.default_timer()
 
         #Start the monitoring for the servers
