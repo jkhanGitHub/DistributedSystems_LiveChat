@@ -38,8 +38,8 @@ class ServerNode:
 
         # logical state
         self.state = ServerState.LOOKING # It was ServerState.LOOKING
-        self.leader_id: Optional[str] # It was Optional[str] = None
-        # self.leader_id = self.server_id # For simplicity, start as own leader. Election can be triggered later.
+        self.leader_id: Optional[str] = None # It was Optional[str] = None
+        #self.leader_id = self.server_id # For simplicity, start as own leader. Election can be triggered later.
 
         # ring structure
         self.left_neighbor: Optional[RingNeighbor] = None
@@ -287,7 +287,8 @@ class ServerNode:
             self.managed_rooms[room_id] = Room(host=self, room_id=room_id)
             print(f"[Server {self.server_id}] created room {room_id}")
             # self.metadata_store.room_locations[room_id] = self.server_id
-            self.metadata_store.update_metadata(room_id, self, self.connection_manager)
+            if self.leader_id is not None:
+                self.metadata_store.update_metadata(room_id, self, self.connection_manager)
 
         return self.managed_rooms[room_id]
 
