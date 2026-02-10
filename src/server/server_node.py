@@ -270,7 +270,7 @@ class ServerNode:
         client_id = msg.sender_id
 
         if room_id not in self.managed_rooms:
-            self.managed_rooms[room_id] = Room(room_id)
+            self.managed_rooms[room_id] = Room(self, room_id) # Added self
             print(f"[Server {self.server_id}] created room {room_id}")
 
         self.managed_rooms[room_id].add_client(client_id)
