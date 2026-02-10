@@ -8,9 +8,6 @@ import timeit
 
 
 class FailureDetector:
-    #Heartbeat mechanism for a particular server
-    #What about heartbeats during elections
-    #If failure detector and the election run in different processes, then it could work together.
     Node = None
     type = 'server'
     PERIOD = 2
@@ -19,58 +16,73 @@ class FailureDetector:
         self.Node = Node
         self.type = type
 
+    def handle_heartbeat(self, message):
+        if message.content == 'Server Heartbeat':
+            self.resetTimer(message.sender_id, 'server')
+        elif message.content == 'Client Heartbeat':
+            self.resetTimer(message.sender_id, 'client')
+
     #sends the heartbeat. and if it is the leader, it also sends the new metadata to all other servers
     #Consider separating the functions too.
     def send_heartbeat(self, ConnectionManagerObject, MetadataStoreObject):
         me = self.Node
         if self.type == 'server':
-            m = Message(content = 'Server Heartbeat', sender_id = me.server_id, type = MessageType.HEARTBEAT.value)
-            #Ensures fault tolerance happens even during elections
-            if me.state != ServerState.LEADER.value:
+            m = Message(content = 'Server Heartbeat', sender_id = me.server_id, type = MessageType.HEARTBEAT)
+            if me.state != ServerState.LEADER:
                 ConnectionManagerObject.send_to_node(me.right_neighbor.id,m)
                 ConnectionManagerObject.send_to_node(me.left_neighbor.id,m)
                 ConnectionManagerObject.send_to_node(me.leader_id,m)
+                print('Sent heartbeats to neighbors')
             else:
                 for i in ConnectionManagerObject.active_connections_peer_to_peer.keys():
-                    if i != me.leader_id:
+                    if i != int(me.leader_id):
                         ConnectionManagerObject.active_connections_peer_to_peer[i].send(m)
-                        MetadataStoreObject.sync_with_leader(active_connections_peers[i], me.server_id, ConnectionManagerObject)
+                        #MetadataStoreObject.sync_with_leader(ConnectionManagerObject.active_connections_peer_to_peer[i], me.server_id, ConnectionManagerObject)
+                        print('Sent heartbeats to every node')
         else:
-            m = Message(content = 'Client Heartbeat', sender_id = me.client_id, type = MessageType.HEARTBEAT.value)
+            m = Message(content = 'Client Heartbeat', sender_id = me.client_id, type = MessageType.HEARTBEAT)
             me.server_connection.send(m)
+        #print('Sent heartbeats')
 
     #Monitors both client and server
     #To be initialized in the init phase of the server node.
     def start_monitoring(self, ConnectionManagerObject):
         me = self.Node
+        self.timers = {}
         #Start the monitoring for the clients
         for i in me.managed_rooms.keys():
             for j in managed_rooms[i].client_ids:
                 self.timers[('client',j)] = timeit.default_timer()
 
         #Start the monitoring for the servers
-        if me.state != ServerState.LEADER.value:
+        if me.state != ServerState.LEADER:
             #Start the timers
-            if me.right_neighbor.id!=0:
-                self.timers[('server',me.right_neighbor.id)] = timeit.default_timer()
-            if me.left_neighbor.id!=0:
-                self.timers[('server',me.left_neighbor.id)]= timeit.default_timer()
-            if me.leader_id!=0:
-                self.timers[('server',me.leader_id)] = timeit.default_timer()
+            if me.right_neighbor.id!='0':
+                self.timers[('server',str(me.right_neighbor.id))] = timeit.default_timer()
+            if me.left_neighbor.id!='0':
+                self.timers[('server',str(me.left_neighbor.id))]= timeit.default_timer()
+            if me.leader_id!='0':
+                print('leader', me.leader_id)
+                self.timers[('server',str(me.leader_id))] = timeit.default_timer()
         else:
             #If leader, start the timer for all the other servers
             for i in ConnectionManagerObject.active_connections_peer_to_peer.keys():
                 if i != me.server_id:
-                    self.timers[('server',i)] = timeit.default_timer()
+                    print('Starting timer for all others')
+                    self.timers[('server',str(i))] = timeit.default_timer()
+        print(self.timers)
 
     #To be called whenever a heartbeat is received for a particular server
     def resetTimer(self, id, type):
+        id = str(id)
         for i in self.timers.keys():
             if i[1] == id:
                 if type == 'server':
+                    print('Resetting timer for server ', id)
                     self.timers[('server',id)] = timeit.default_timer()
                     return
                 elif type == 'client':
+                    #print('Resetting timer for client ', id)
                     self.timers[('client',id)] = timeit.default_timer()
                     return
         return
@@ -105,6 +117,7 @@ class FailureDetector:
 
     #A ServerNodeObject checks the timeouts of its connections and additionally the clients to check if they are active.
     def check_timeouts(self, ConnectionManagerObject):
+        print('Checking timeouts')
         for i in self.timers.keys():
             if timeit.default_timer() - self.timers[i] > 2*(self.PERIOD):
                 print('failure ' + str(i))
