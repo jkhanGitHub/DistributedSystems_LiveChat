@@ -43,21 +43,27 @@ class TCPConnection:
         self.port = port
 
     def send(self, msg: Message):
-        payload = msg.serialize()
-        length = len(payload).to_bytes(4, "big")
-        self.socket.sendall(length + payload)
+        try:
+            payload = msg.serialize()
+            length = len(payload).to_bytes(4, "big")
+            self.socket.sendall(length + payload)
+        except Exception as e:
+            print("[TCPConnection] send failed:", e)
 
     def receive(self) -> Optional[Message]:
-        length_bytes = self._recv_exact(4)
-        if not length_bytes:
-            return None
+        try:
+            length_bytes = self._recv_exact(4)
+            if not length_bytes:
+                return None
 
-        length = int.from_bytes(length_bytes, "big")
-        payload = self._recv_exact(length)
-        if payload is None:
-            return None
+            length = int.from_bytes(length_bytes, "big")
+            payload = self._recv_exact(length)
+            if payload is None:
+                return None
 
-        return Message.deserialize(payload)
+            return Message.deserialize(payload)
+        except Exception:
+            return None
 
     def _recv_exact(self, size: int) -> Optional[bytes]:
         data = b""
@@ -105,11 +111,19 @@ class ConnectionManager:
         callback: Callable[[Message], None],
     ):
         def loop():
-            while True:
-                msg = conn.receive()
-                if msg is None:
-                    break
-                callback(msg)
+            try:
+                while True:
+                    msg = conn.receive()
+                    if msg is None:
+                        break
+                    callback(msg)
+            except Exception as e:
+                print("[ConnectionManager] connection error:", e)
+            finally:
+                try:
+                    conn.close()
+                except:
+                    pass
 
         threading.Thread(target=loop, daemon=True).start()
 
