@@ -108,7 +108,8 @@ class ServerNode:
 
             # -------- client → server discovery --------
             case MessageType.DISCOVERY_REQUEST:
-                self._handle_client_discovery(msg)
+                #run handle client discovery inside of a thread to prevent responding when election is happening
+                threading.Thread(target=self._handle_client_discovery, args=(msg,)).start()
 
             case MessageType.DISCOVERY_RESPONSE:
                 return
@@ -204,6 +205,10 @@ class ServerNode:
 
     def _handle_client_discovery(self, msg: Message):
         print(f"[Server {self.server_id}] client discovery from {msg.sender_id}")
+
+        #block until election is done
+        while self.state == ServerState.LOOKING:
+            time.sleep(0.1)
 
         if self.state == ServerState.LEADER:
             self._send_rooms_to_client(msg.sender_addr)

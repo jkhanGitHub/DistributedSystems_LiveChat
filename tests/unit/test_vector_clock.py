@@ -117,5 +117,72 @@ class TestVectorClock(unittest.TestCase):
         msg_vc_5.timestamps = {node_a: 1, node_b: 1, node_c: 1}
         self.assertTrue(local_vc.is_causally_ready(msg_vc_5, node_c))
 
+    def test_merge_enlargement_demo(self):
+        print("\n--- Merge Enlargement Demo ---")
+        vc_local = VectorClock(timestamps={"NodeA": 1})
+        vc_remote = VectorClock(timestamps={"NodeA": 1, "NodeB": 1, "NodeC": 5})
+        
+        print(f"Before merge: {vc_local.timestamps} (Size: {len(vc_local.timestamps)})")
+        vc_local.merge(vc_remote)
+        print(f"After merge:  {vc_local.timestamps} (Size: {len(vc_local.timestamps)})")
+        
+        self.assertEqual(len(vc_local.timestamps), 3)
+        print("------------------------------")
+
+    def test_complex_dynamic_join_causality(self):
+        """
+        Scenario:
+        1. Node A and B are active.
+        2. Node A sends Msg1 (A:1).
+        3. Node B receives Msg1, then sends Msg2 (A:1, B:1).
+        4. Node C joins late. 
+        5. Node C receives Msg2 (from B) BEFORE receiving Msg1 (from A).
+        6. Node C should NOT deliver Msg2 yet because it's missing Msg1.
+        """
+        node_a = "NodeA"
+        node_b = "NodeB"
+        node_c = "NodeC"
+        
+        # Node A sends Msg1
+        msg1_vc = VectorClock(timestamps={node_a: 1})
+        
+        # Node B receives Msg1 and sends Msg2
+        node_b_local_vc = VectorClock(timestamps={node_a: 1, node_b: 1})
+        msg2_vc = node_b_local_vc.copy() # Msg2 has (A:1, B:1)
+        
+        # Node C starts fresh (late joiner)
+        node_c_local_vc = VectorClock() # Initially {}
+        
+        # Node C receives Msg2 first
+        # Crucial: C doesn't know about A yet, but when it sees msg2_vc, 
+        # it sees that A is at 1. C's local A is 0.
+        is_ready = node_c_local_vc.is_causally_ready(msg2_vc, node_b)
+        
+        print("\n--- Complex Dynamic Join Causality ---")
+        print(f"Node C local clock: {node_c_local_vc.timestamps}")
+        print(f"Incoming Msg2 from B: {msg2_vc.timestamps}")
+        print(f"Is Msg2 causally ready at C? {is_ready}")
+        
+        self.assertFalse(is_ready, "Msg2 should be blocked because Msg1 (A:1) is missing")
+        
+        # Now Node C receives Msg1 from A
+        is_ready_msg1 = node_c_local_vc.is_causally_ready(msg1_vc, node_a)
+        print(f"Incoming Msg1 from A: {msg1_vc.timestamps}")
+        print(f"Is Msg1 causally ready at C? {is_ready_msg1}")
+        
+        self.assertTrue(is_ready_msg1, "Msg1 should be deliverable")
+        
+        # C 'delivers' Msg1 and updates its clock
+        node_c_local_vc.merge(msg1_vc)
+        print(f"Node C clock after delivering Msg1: {node_c_local_vc.timestamps}")
+        
+        # Now try Msg2 again
+        is_ready_retry = node_c_local_vc.is_causally_ready(msg2_vc, node_b)
+        print(f"Retrying Msg2 from B: {msg2_vc.timestamps}")
+        print(f"Is Msg2 now causally ready at C? {is_ready_retry}")
+        
+        self.assertTrue(is_ready_retry, "Msg2 should now be deliverable")
+        print("---------------------------------------")
+
 if __name__ == '__main__':
     unittest.main()
