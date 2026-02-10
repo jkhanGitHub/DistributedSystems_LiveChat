@@ -22,6 +22,7 @@ class Message {
 
     class VectorClock {
         +Map~String, int~ timestamps
+        +copy() VectorClock
         +increment(String node_id)
         +merge(VectorClock other)
         +compare(VectorClock other) int
@@ -33,6 +34,8 @@ class Message {
         +List~String~ client_ids
         +List~Message~ message_history
         +List~Message~ hold_back_queue
+        +ServerNode host
+        +copy() Room
         +add_client(String client_id)
         +remove_client(String client_id)
         +add_message(Message msg)
@@ -69,11 +72,24 @@ class Message {
         +String leader_id
         +RingNeighbor left_neighbor
         +RingNeighbor right_neighbor
+        +int number_of_rooms
+        +Map~String, dict~ servers
+        +Map~String, Room~ managed_rooms 
         +start()
+        +StartFailureDetection()
         +run()
-        +handle_discovery()
+        +create_room(String room_id) Room
         +handle_join(Socket sock, Addr addr)
         +process_message(Message msg)
+        -_broadcast_server_discovery()
+        -_handle_udp_message(Message msg)
+        -_handle_server_discovery(Message msg)
+        -_handle_client_discovery(Message msg)
+        -_send_rooms_to_client(Addr addr)
+        -_recompute_ring()
+        -_handle_join_room(Message msg)
+        +get_neighbors(String my_id)
+        +update_neighbour_id(Message msg)
     }
 
     class ServerState {
