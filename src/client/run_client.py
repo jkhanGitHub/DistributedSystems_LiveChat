@@ -15,12 +15,21 @@ if __name__ == "__main__":
         print("[Client] connecting manually...")
         client.start(ip, port)
     else:
-        print("[Client] discovering rooms...")
+        print("[Client] discovering server...")
         client.discover_server(DISCOVERY_PORT)
+
+        start_time = time.time()
+        while client.server_connection is None:
+            if time.time() - start_time > DISCOVERY_TIMEOUT:
+                print("[Client] No server discovered")
+                sys.exit(1)
+            time.sleep(0.1)
+
+    client.join_room("room1")
 
     try:
         while True:
             msg = input("> ")
-            client.send_message(msg, client.current_room)
+            client.send_message(msg, "room1")
     except KeyboardInterrupt:
         print("\n[Client] shutting down")

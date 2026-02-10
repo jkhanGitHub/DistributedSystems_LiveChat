@@ -1,10 +1,9 @@
 from enum import Enum, auto
-from typing import Dict, List, Optional, TYPE_CHECKING
-if TYPE_CHECKING:
-    from src.server.server_node import ServerNode
+from typing import Dict, List, Optional
 import uuid
 import json
 from dataclasses import dataclass, field, asdict
+
 class MessageType(Enum):
     CLIENT_JOIN = "CLIENT_JOIN"
     SERVER_JOIN = "SERVER_JOIN"
@@ -19,7 +18,7 @@ class MessageType(Enum):
     SYNC = "SYNC"
     METADATA_UPDATE = "METADATA_UPDATE"
     UPDATE_NEIGHBOUR = "UPDATE_NEIGHBOUR"
-    AVAILABLE_ROOMS = "AVAILABLE_ROOMS"
+
 
 NodeId = str
 
@@ -92,11 +91,6 @@ class VectorClock:
                 
         return True
 
-    def copy(self):
-        return VectorClock(
-            timestamps=self.timestamps.copy()
-        )
-
 @dataclass
 class Message:
     type: MessageType
@@ -138,7 +132,6 @@ class Message:
 
 @dataclass
 class Room:
-    host: 'ServerNode'
     room_id: str
     client_ids: List[NodeId] = field(default_factory=list)
     message_history: List[Message] = field(default_factory=list)
@@ -155,14 +148,3 @@ class Room:
 
     def add_message(self, msg: Message):
         self.message_history.append(msg)
-
-    #copy constructor for reinstatiating room, if server breaks down.
-    def copy(self):
-        return Room(
-            host=self.host,
-            room_id=self.room_id,
-            client_ids=self.client_ids.copy(),
-            message_history=self.message_history.copy(),
-            vector_clock=self.vector_clock.copy(),
-            hold_back_queue=self.hold_back_queue.copy()
-        )

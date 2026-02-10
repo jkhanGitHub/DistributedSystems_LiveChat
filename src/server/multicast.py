@@ -55,7 +55,7 @@ class CausalMulticastHandler:
         """
         Sends the message to all clients in the room.
         """
-        # use TCP connection to send the message to all participant of the room
-        for client_id in room.client_ids:
-            room.host.connection_manager.active_connections_server_to_client[client_id].send(msg)
-
+        print(f"[Server] Multicasting message {msg.content} to room {room.room_id}")
+        # In a real implementation:
+        # for client_id in room.client_ids:
+        #     send_to_client(client_id, msg)

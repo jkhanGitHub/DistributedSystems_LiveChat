@@ -5,8 +5,6 @@ import os
 import json
 import threading
 import time
-import secrets
-import string
 
 from ..domain.models import Room, Message, MessageType
 from ..network.transport import ConnectionManager, UDPHandler
@@ -24,25 +22,16 @@ class RingNeighbor:
     port: int
 
 class ServerNode:
-    def __init__(self, server_id: str, ip_address: str, port: int, number_of_rooms: int):
+    def __init__(self, server_id: str, ip_address: str, port: int):
         self.server_id = server_id
         self.ip_address = self._get_local_ip() # It was "127.0.0.1"
         self.port = port
         self.servers: Dict[str, dict] = {}
         self.ring = []
-<<<<<<< Updated upstream
-=======
-        self.number_of_rooms = number_of_rooms
-        self.servers[self.server_id] = {
-            "ip": self.ip_address,
-            "port": self.port,
-        }
->>>>>>> Stashed changes
 
         # logical state
-        self.state = ServerState.LEADER # It was ServerState.LOOKING
-        self.leader_id: Optional[int] # It was Optional[str] = None
-        self.leader_id = self.server_id # For simplicity, start as own leader. Election can be triggered later.
+        self.state = ServerState.LOOKING
+        self.leader_id: Optional[str] = None
 
         # ring structure
         self.left_neighbor: Optional[RingNeighbor] = None
@@ -59,15 +48,10 @@ class ServerNode:
         self.metadata_store = MetadataStore()
         self.multicast_handler = CausalMulticastHandler()
 
-        # TODO: create room through server prompt, for now this works.
-        # create a room in each server with name being a random 4 char string
-        for i in range(self.number_of_rooms):
-            random_id = "".join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(4))
-            temp_room = self.create_room(random_id)
-            #add room to managed rooms
-            self.managed_rooms[random_id] = temp_room
-
+    # --------------------------------------------------
     # lifecycle
+    # --------------------------------------------------
+
     def start(self):
         self.run()
 
@@ -87,12 +71,8 @@ class ServerNode:
         self.udp_handler.listen(DISCOVERY_PORT, self._handle_udp_message)
         print(f"[Server {self.server_id}] UDP discovery listening on {DISCOVERY_PORT}")
 
-<<<<<<< Updated upstream
         time.sleep(0.5) #d elay for clusters to start listeners
         # ---- server gossip  
-=======
-        time.sleep(0.5) # delay for clusters to start listeners
->>>>>>> Stashed changes
         # self._start_server_gossip()
         self._broadcast_server_discovery()
 
@@ -173,11 +153,6 @@ class ServerNode:
             peer_ip = data["ip"]
             peer_port = data["port"]
 
-            self.servers[msg.sender_id] = {
-                "ip": peer_ip,
-                "port": peer_port,
-            }
-
             conn = self.connection_manager.connect_to(peer_ip, peer_port)
 
             self.connection_manager.active_connections_peer_to_peer[msg.sender_id] = conn
@@ -212,15 +187,14 @@ class ServerNode:
     # client → server discovery 
 
     def _handle_client_discovery(self, msg: Message):
-<<<<<<< Updated upstream
         print(f"[Server {self.server_id}] replying to client discovery")
         client_ip = msg.sender_addr[0]
         response = Message(
-            type=MessageType.AVAILABLE_ROOMS,
+            type=MessageType.DISCOVERY_RESPONSE,
             sender_id=self.server_id,
             content=json.dumps({
-                "client_ip": client_ip,
-                "client_port": msg.sender_addr[1],
+                "ip": self.ip_address,
+                "port": self.port,
             }),
         )
         print(
@@ -228,27 +202,7 @@ class ServerNode:
             f"{msg.sender_id} at {msg.sender_addr}"
         )
         
-        # self.udp_handler.send_to(response, msg.sender_addr)
-        # ask leader to communicate available rooms to client
-        self.connection_manager.active_connections_peer_to_peer[self.leader_id].send(response)
-=======
-        print(f"[Server {self.server_id}] client discovery from {msg.sender_id}")
-
-        if self.state == ServerState.LEADER:
-            self._send_rooms_to_client(msg.sender_addr)
-            return
-
-        forward = Message(
-            type=MessageType.AVAILABLE_ROOMS,
-            sender_id=self.server_id,
-            content=json.dumps({
-                "client_ip": msg.sender_addr[0],
-                "client_port": msg.sender_addr[1],
-            }),
-        )
-
-        self.connection_manager.send_to_node(self.leader_id, forward)
->>>>>>> Stashed changes
+        self.udp_handler.send_to(response, msg.sender_addr)
 
     # TCP join handling
 
@@ -276,18 +230,6 @@ class ServerNode:
 
         self.connection_manager.listen_to_connection(conn, self.process_message)
 
-    def _send_rooms_to_client(self, addr):
-        response = Message(
-            type=MessageType.AVAILABLE_ROOMS,
-            sender_id=self.server_id,
-            content=json.dumps({
-                "rooms": self.metadata_store.room_locations,
-                "servers": self.servers,
-            }),
-        )
-
-        self.udp_handler.send_to(response, addr)
-
     #Neighbor lookup
     def get_neighbors(self, my_id):
         if not self.ring or my_id not in self.ring:
@@ -302,14 +244,6 @@ class ServerNode:
 
     # chat / control plane
 
-    def create_room(self, room_id: str) -> Room:
-        """Creates a new room with this node as the host."""
-        if room_id not in self.managed_rooms:
-            self.managed_rooms[room_id] = Room(host=self, room_id=room_id)
-            print(f"[Server {self.server_id}] created room {room_id}")
-            self.metadata_store.room_locations[room_id] = self.server_id # Update metadata to add rooms
-        return self.managed_rooms[room_id]
-
     def _handle_join_room(self, msg: Message):
         room_id = msg.room_id
         client_id = msg.sender_id
@@ -323,22 +257,6 @@ class ServerNode:
         print(
             f"[Server {self.server_id}] client {client_id} joined room {room_id}"
         )
-
-    def _handle_available_rooms(self, msg: Message):
-        data = json.loads(msg.content)
-        client_ip = data["client_ip"]
-        client_port = data["client_port"]
-        content = json.dumps({
-            "rooms": self.metadata_store.room_locations
-        })
-        response = Message(
-            type=MessageType.AVAILABLE_ROOMS,
-            sender_id=self.server_id,
-            content=content,
-        )
-        print(f"[Server {self.server_id}] sending available rooms to {client_ip}:{client_port}")
-        self.udp_handler.send_to(response, (client_ip, client_port))
-        
 
     def _recompute_ring(self):
         members = [self.server_id]
@@ -359,24 +277,6 @@ class ServerNode:
         print(" members:", self.ring)
         print(" left:", left)
         print(" right:", right)
-
-    def _handle_available_rooms(self, msg: Message):
-        data = json.loads(msg.content)
-
-        client_ip = data["client_ip"]
-        client_port = data["client_port"]
-
-        response = Message(
-            type=MessageType.AVAILABLE_ROOMS,
-            sender_id=self.server_id,
-            content=json.dumps({
-                "rooms": self.metadata_store.room_locations,
-                "servers": self.servers,
-            }),
-        )
-
-        self.udp_handler.send_to(response, (client_ip, client_port))
-
 
     def update_neighbour_id(self, msg: Message):
         if self.left_neighbor and msg.sender_id == self.left_neighbor.id:
@@ -414,17 +314,6 @@ class ServerNode:
 
             case MessageType.UPDATE_NEIGHBOUR:
                 self.update_neighbour_id(msg)
-
-            case MessageType.AVAILABLE_ROOMS:
-<<<<<<< Updated upstream
-                self._handle_available_rooms(msg)
-=======
-                if self.state == ServerState.LEADER:
-                    self._handle_available_rooms(msg)
-
-            case MessageType.METADATA_UPDATE:
-                self.metadata_store.handle_message(msg, self.connection_manager)
->>>>>>> Stashed changes
 
             case _:
                 print(
