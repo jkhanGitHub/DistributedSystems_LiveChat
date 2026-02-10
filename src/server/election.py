@@ -35,8 +35,8 @@ class ElectionModule:
         me = self.Node
         #Convert it to switch case
         if dec['type'] == 'Election':
-            #print('received election from ', dec['mid'])
-            #print('Election params d , k', (dec['d'],dec['k']))
+            print('received election from ', dec['mid'])
+            print('Election params d , k', (dec['d'],dec['k']))
             if me.server_id < dec['mid'] and dec['d'] < 2**dec['k']:
                 m = self.ConstructElectionMessage(dec['mid'], dec['k'], dec['d'] + 1)
                 #Send it forward
@@ -44,15 +44,16 @@ class ElectionModule:
                     ConnectionManagerObject.send_to_node(me.left_neighbor.id, m)
                 elif message.sender_id == me.left_neighbor.id:
                     ConnectionManagerObject.send_to_node(me.right_neighbor.id, m)
-                #print('Sending it forward for ' + str(dec['mid']) + ' with k ' + str(dec['k']))
+                print('Sending it forward for ' + str(dec['mid']) + ' with k ' + str(dec['k']))
             elif me.server_id < dec['mid'] and dec['d'] == 2**dec['k']:
                 m = self.ConstructReplyMessage(dec['mid'], dec['k'])
                 #Send it back
-                if message.sender_id == me.left_neighbor.id:
+                """if message.sender_id == me.left_neighbor.id:
                     ConnectionManagerObject.send_to_node(me.left_neighbor.id, m)
                 elif message.sender_id == me.right_neighbor.id:
-                    ConnectionManagerObject.send_to_node(me.right_neighbor.id, m)
-                #print('Sending reply for ' +str(dec['mid']) + ' back to ' +  str(message.sender_id))
+                    ConnectionManagerObject.send_to_node(me.right_neighbor.id, m)"""
+                ConnectionManagerObject.send_to_node(dec['mid'], m)
+                print('Sending reply for ' +str(dec['mid']) + ' back to ' +  str(message.sender_id))
             elif me.server_id == dec['mid']:
                 if me.leader_id != me.server_id:
                     m = self.ConstructLeaderAnnouncementMessage(me.server_id)
@@ -66,8 +67,8 @@ class ElectionModule:
                     me.state = ServerState.LEADER
 
                     #Remove self from the ring
-                    right = Message(content = str(me.left_neighbor.id),sender_id = me.server_id, type = MessageType.UPDATE_NEIGHBOUR)
-                    left = Message(content = str(me.right_neighbor.id),sender_id = me.server_id, type = MessageType.UPDATE_NEIGHBOUR)
+                    right = Message(content = 'left ' + str(me.left_neighbor.id),sender_id = me.server_id, type = MessageType.UPDATE_NEIGHBOUR)
+                    left = Message(content = 'right ' + str(me.right_neighbor.id),sender_id = me.server_id, type = MessageType.UPDATE_NEIGHBOUR)
                     ConnectionManagerObject.send_to_node(me.left_neighbor.id, left)
                     ConnectionManagerObject.send_to_node(me.right_neighbor.id, right)
                     me.right_neighbor.id = 0
@@ -75,15 +76,15 @@ class ElectionModule:
                     #To be handled in server_node
 
         elif dec['type'] == 'Reply':
-            #print('received reply from ', message.sender_id)
-            #print('Reply params d , k', (dec['d'],dec['k']))
+            print('received reply from ', message.sender_id)
+            print('Reply params d , k', (dec['d'],dec['k']))
             if me.server_id != dec['mid']:
                 if message.sender_id == me.right_neighbor.id:
                     ConnectionManagerObject.send_to_node(me.left_neighbor.id, message)
-                    #print('Sending reply for ' +str(dec['mid']) + ' to ' +  str(me.left_neighbor.id,))
+                    print('Sending reply for ' +str(dec['mid']) + ' to ' +  str(me.left_neighbor.id,))
                 elif message.sender_id == me.left_neighbor.id:
                     ConnectionManagerObject.send_to_node(me.right_neighbor.id, message)
-                    #print('Sending reply for ' +str(dec['mid']) + ' to ' +  str(me.right_neighbor.id,))
+                    print('Sending reply for ' +str(dec['mid']) + ' to ' +  str(me.right_neighbor.id,))
             else:
                 self.reply_counter += 1
                 if self.reply_counter == 2:
@@ -98,12 +99,18 @@ class ElectionModule:
             print('My connection manager has')
             for i in ConnectionManagerObject.active_connections_peer_to_peer.keys():
                 print(i)
-            #me.state = ServerState.FOLLOWER
+            me.state = ServerState.FOLLOWER
 
 
 
     def start_election(self, ConnectionManagerObject, k = 0):
         print('Starting Election ',k)
+        if len(ConnectionManagerObject.active_connections_peer_to_peer) == 0:
+            me = self.Node
+            me.leader_id = me.server_id
+            me.state = ServerState.LEADER
+            print('I am leader')
+            return
         self.Node.state = ServerState.ELECTION_IN_PROGRESS
         self.reply_counter = 0
         self.Node.leader_id = '0'
