@@ -22,11 +22,13 @@ class ChatClient:
         self.udp_handler = UDPHandler()
         self.connection_manager = ConnectionManager()
 
+        self.current_room = None
+        self.discovered_servers = {}
+
     # Lifecycle
     def start(self, ip: str, port: int):
-        """
-        Connect to server and start receiving messages.
-        """
+        # Connect to server and start receiving messages.
+        
         try:
             self.server_connection = self.connection_manager.connect_to(ip, port)
         except Exception as e:
@@ -51,9 +53,8 @@ class ChatClient:
 
     # Discovery
     def discover_server(self, discovery_port: int):
-        """
-        Discover servers via UDP.
-        """
+         # Discover servers via UDP.
+        
         if self.discovery_active:
             return
         
@@ -81,26 +82,37 @@ class ChatClient:
         if self.server_connection is not None:
             return
         
-        if msg.type != MessageType.DISCOVERY_RESPONSE:
-            return
+        if msg.type == MessageType.AVAILABLE_ROOMS:
+            self.discovery_active = False
+            self._handle_available_rooms(msg)
         
+    def _handle_available_rooms(self, msg: Message):
         data = json.loads(msg.content)
-        ip = data["ip"]
-        port = data["port"]
-        if ip == "0.0.0.0":
-            ip = "127.0.0.1"
-        print(f"[Client {self.client_id}] discovered server "
-              f"{msg.sender_id} at {ip}:{port}")
+        rooms = data["rooms"]
+        servers = data["servers"]
 
-        self.discovery_active = False
+        room_list = list(rooms.items())
+
+        print("\nAvailable rooms:")
+        for i, (room_id, server_id) in enumerate(room_list):
+            print(f"{i}: {room_id} (server {server_id})")
+
+        choice = int(input("Select room: "))
+        room_id, server_id = room_list[choice]
+
+        ip = servers[str(server_id)]["ip"]
+        port = servers[str(server_id)]["port"]
+
         self.start(ip, port)
+        self.join_room(room_id)
+        self.current_room = room_id
+        print(f"[Client {self.client_id}] joined room {room_id}")
 
 
     # Chat protocol
     def join_room(self, room_id: str):
-        """
-        Join a chat room.
-        """
+        # Join a chat room.
+        
         if not self.server_connection:
             print("[Client] Not connected to server")
             return
@@ -113,9 +125,7 @@ class ChatClient:
         self.server_connection.send(join_room_msg)
 
     def send_message(self, content: str, room_id: str):
-        """
-        Send a chat message.
-        """
+        # Send a chat message.
         # Increment local clock
         self.client_clock.increment(self.client_id)
 
@@ -143,11 +153,9 @@ class ChatClient:
 
     # Receive
     def receive_message(self, msg: Message):
-        """
-        Handle incoming messages from server.
-        """
+        # Handle incoming messages from server.
         self.client_clock.merge(msg.vector_clock)
         print(
-            f"[Client {msg.sender_id}] "
-            f"{msg.content}"
+            f"[Room {msg.room_id}] "
+            f"[Client {msg.sender_id}]: {msg.content}" 
         )
