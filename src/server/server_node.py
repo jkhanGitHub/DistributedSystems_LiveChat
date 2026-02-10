@@ -7,6 +7,7 @@ import threading
 import time
 import secrets
 import string
+import timeit
 
 from ..domain.models import Room, Message, MessageType
 from ..network.transport import ConnectionManager, UDPHandler
@@ -37,14 +38,14 @@ class ServerNode:
         }
 
         # logical state
-        self.state = ServerState.LOOKING # It was ServerState.LOOKING
-        self.leader_id: Optional[str] = None # It was Optional[str] = None
+        self.state = ServerState.LEADER
+        self.leader_id = '0'
         #self.leader_id = self.server_id # For simplicity, start as own leader. Election can be triggered later.
 
         # ring structure
-        self.left_neighbor: Optional[RingNeighbor] = None
-        self.right_neighbor: Optional[RingNeighbor] = None
-
+        self.left_neighbor = RingNeighbor('0', '127.0.0.1', 5001)
+        self.right_neighbor = RingNeighbor('0', '127.0.0.1', 5001)
+        
         # rooms
         self.managed_rooms: Dict[str, Room] = {}
 
@@ -68,6 +69,22 @@ class ServerNode:
     def start(self):
         self.run()
 
+    def StartFailureDetection(self):
+        start = 0
+        init = 1
+        self.failure_detector.start_monitoring(self.connection_manager)
+        while(True):
+            if self.state == ServerState.ELECTION_IN_PROGRESS or self.state == ServerState.LOOKING:
+                init = 1
+                start = timeit.default_timer()
+            else:
+                if init == 1:
+                    self.failure_detector.start_monitoring(self.connection_manager)
+                    init = 0
+                if timeit.default_timer() - start > self.failure_detector.PERIOD:
+                    self.failure_detector.send_heartbeat(self.connection_manager, self.metadata_store)
+                    start = timeit.default_timer()
+
     def run(self):
         # ---- TCP listener ----
         tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -88,12 +105,21 @@ class ServerNode:
         # self._start_server_gossip()
         self._broadcast_server_discovery()
 
-        while True:
-            try:
-                sock, addr = tcp_socket.accept()
-                self.handle_join(sock, addr)
-            except Exception as e:
-                print(f"[Server {self.server_id}] accept error:", e)
+        def acceptTCP():
+            while True:
+                try:
+                    sock, addr = tcp_socket.accept()
+                    self.handle_join(sock, addr)
+                except Exception as e:
+                    print(f"[Server {self.server_id}] accept error:", e)
+        
+        t1 = threading.Thread(target=acceptTCP, daemon=True)
+        t1.start()
+
+        t2 = threading.Thread(target=self.StartFailureDetection, daemon=True)
+        t2.start()
+        t1.join()
+    
     # UDP handling 
     def _handle_udp_message(self, msg: Message):
         if msg.type != MessageType.SERVER_DISCOVERY: # To reduce spam
@@ -194,8 +220,11 @@ class ServerNode:
                 sender_id=self.server_id,
             )
             conn.send(join_msg)
+            #self.connection_manager.listen_to_connection(conn, self.process_message)
 
             self._recompute_ring()
+            #time.sleep(1)
+            self.election_module.start_election(self.connection_manager)
 
         except Exception as e:
             print(f"[Server {self.server_id}] could not connect to peer:", e)
@@ -240,6 +269,8 @@ class ServerNode:
             elif msg.type == MessageType.SERVER_JOIN:
                 self._handle_server_join(msg, conn)
                 self._recompute_ring()
+                self.election_module.start_election(self.connection_manager)
+        
         except Exception as e:
             print(f"[Server {self.server_id}] join error:", e)
 
@@ -321,6 +352,9 @@ class ServerNode:
         left = self.ring[(idx + 1) % len(self.ring)]
         right = self.ring[(idx - 1) % len(self.ring)]
 
+        self.right_neighbor = RingNeighbor(right, '127.0.0.1', 5001)
+        self.left_neighbor = RingNeighbor(left,'127.0.0.1', 5001)
+
         print(f"[Server {self.server_id}] ring stabilized:")
         print(" members:", self.ring)
         print(" left:", left)
@@ -345,10 +379,13 @@ class ServerNode:
 
 
     def update_neighbour_id(self, msg: Message):
-        if self.left_neighbor and msg.sender_id == self.left_neighbor.id:
+        if msg.sender_id == self.left_neighbor.id:
             self.left_neighbor.id = msg.content
-        elif self.right_neighbor and msg.sender_id == self.right_neighbor.id:
+            print('Updated my left to ', msg.content)
+        elif msg.sender_id == self.right_neighbor.id:
             self.right_neighbor.id = msg.content
+            print('Updated my right to ', msg.content)
+        self.state = ServerState.FOLLOWER
 
     def process_message(self, msg: Message):
         match msg.type:
@@ -363,7 +400,7 @@ class ServerNode:
                     )
 
             case MessageType.ELECTION:
-                self.election_module.handle_message(msg)
+                self.election_module.handle_message(msg, self.connection_manager)
 
             case MessageType.HEARTBEAT:
                 self.failure_detector.handle_heartbeat(msg)
