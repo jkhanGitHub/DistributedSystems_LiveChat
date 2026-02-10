@@ -19,6 +19,7 @@ class MessageType(Enum):
     SYNC = "SYNC"
     METADATA_UPDATE = "METADATA_UPDATE"
     UPDATE_NEIGHBOUR = "UPDATE_NEIGHBOUR"
+    AVAILABLE_ROOMS = "AVAILABLE_ROOMS"
 
 
 NodeId = str
@@ -91,6 +92,11 @@ class VectorClock:
                 return False
                 
         return True
+
+
+    def merge(self, other: 'VectorClock'):
+        for node in other.timestamps:
+            self.timestamps[node] = max(self.timestamps.get(node, 0), other.timestamps[node])
 
     def copy(self):
         return VectorClock(
