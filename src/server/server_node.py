@@ -89,7 +89,7 @@ class ServerNode:
         # ---- TCP listener ----
         tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         tcp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        tcp_socket.bind(("0.0.0.0", self.port)) # It was self.ip_address
+        tcp_socket.bind(("0.0.0.0", self.port)) # It was self.ip_address 0.0.0.0
         tcp_socket.listen()
 
         print(
@@ -117,7 +117,7 @@ class ServerNode:
         t1.start()
 
         t2 = threading.Thread(target=self.StartFailureDetection, daemon=True)
-        t2.start()
+        #t2.start()
         t1.join()
     
     # UDP handling 
@@ -228,7 +228,6 @@ class ServerNode:
 
         except Exception as e:
             print(f"[Server {self.server_id}] could not connect to peer:", e)
-
 
     # client → server discovery 
 
