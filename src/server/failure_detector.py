@@ -23,7 +23,6 @@ class FailureDetector:
             self.resetTimer(message.sender_id, 'client')
 
     #sends the heartbeat. and if it is the leader, it also sends the new metadata to all other servers
-    #Consider separating the functions too.
     def send_heartbeat(self, ConnectionManagerObject, MetadataStoreObject):
         me = self.Node
         if self.type == 'server':
@@ -57,9 +56,9 @@ class FailureDetector:
         #Start the monitoring for the servers
         if me.state != ServerState.LEADER:
             #Start the timers
-            if me.right_neighbor.id!='0':
+            if me.right_neighbor.id!='0' and str(me.right_neighbor.id) != str(me.server_id):
                 self.timers[('server',str(me.right_neighbor.id))] = timeit.default_timer()
-            if me.left_neighbor.id!='0':
+            if me.left_neighbor.id!='0' and str(me.left_neighbor.id) != str(me.server_id):
                 self.timers[('server',str(me.left_neighbor.id))]= timeit.default_timer()
             if me.leader_id!='0':
                 print('leader', me.leader_id)
@@ -91,20 +90,38 @@ class FailureDetector:
     def on_failure_detected(self, typeid, ConnectionManagerObject):
         me = self.Node
         type = typeid[0]
-        id = typeid[1]
-        self.timers.pop(typeid, None)
+        id = int(typeid[1])
+        #self.timers.pop(typeid, None)
         if type == 'server':
-            if id == me.leader_id:
+            if id == int(me.leader_id):
                 #spawn a new process here. So that there is failure detection during elections
                 #Test them individually first. Then make it concurrent
-                ElectionModuleObject = self.Node.election_module
-                ElectionModuleObject.start_election(ConnectionManagerObject)
+                if id in ConnectionManagerObject.active_connections_peer_to_peer.keys():
+                    ConnectionManagerObject.active_connections_peer_to_peer.pop(id)
+                    print('left ', me.left_neighbor.id)
+                    print('right ', me.right_neighbor.id)
+                    me.election_module.start_election(ConnectionManagerObject)
             else:
                 #Consider what happens when only a few servers are available
                 if id in ConnectionManagerObject.active_connections_peer_to_peer.keys():
                     ConnectionManagerObject.active_connections_peer_to_peer.pop(id)
                     #Fix the ring
                     #Elections are to be triggered newly after ring formation
+                    print('Server ' + str(id) + ' has crashed!')
+                    if me.state == ServerState.LEADER:
+                        print("Sending update neighbor command")
+                        crashed = me.ring.index(id)
+                        if int(me.leader_id) in me.ring:
+                            me.ring.remove(int(me.leader_id))
+                        leftOfCrashed = me.ring[((crashed + 1)%len(me.ring))]
+                        rightOfCrashed = me.ring[((crashed - 1)%len(me.ring))]
+                        print('The left and right of crashed are ' + str(leftOfCrashed) + ' ' + str(rightOfCrashed))
+                        right = Message(content = 'left ' + str(leftOfCrashed),sender_id = me.server_id, type = MessageType.UPDATE_NEIGHBOUR)
+                        left = Message(content = 'right ' + str(rightOfCrashed),sender_id = me.server_id, type = MessageType.UPDATE_NEIGHBOUR)
+                        ConnectionManagerObject.send_to_node(int(rightOfCrashed), right)
+                        ConnectionManagerObject.send_to_node(int(leftOfCrashed), left)
+                    """me._recompute_ring()
+                    me.election_module.start_election(ConnectionManagerObject)"""
                     """
                     if id == me.right_neighbor:
                         me.right_neighbor = me.right_neighbor.right_neighbor
@@ -117,8 +134,8 @@ class FailureDetector:
 
     #A ServerNodeObject checks the timeouts of its connections and additionally the clients to check if they are active.
     def check_timeouts(self, ConnectionManagerObject):
-        print('Checking timeouts')
+        #print('Checking timeouts')
         for i in self.timers.keys():
             if timeit.default_timer() - self.timers[i] > 2*(self.PERIOD):
-                print('failure ' + str(i))
+                #print('failure ' + str(i))
                 self.on_failure_detected(i, ConnectionManagerObject)
