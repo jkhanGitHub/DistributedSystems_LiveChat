@@ -29,13 +29,12 @@ class ServerNode:
         self.server_id = server_id
         self.ip_address = self._get_local_ip() # It was "127.0.0.1" force_loopback=True
         self.port = port
-        self.servers: Dict[str, dict] = {}
+
         self.ring = []
         self.number_of_rooms = number_of_rooms
-        self.servers[self.server_id] = {
-            "ip": self.ip_address,
-            "port": self.port,
-        }
+
+        self.receivedDiscoveryResponses = 0
+        self.goAhead = False
 
         # logical state
         self.state = ServerState.LEADER
@@ -81,6 +80,7 @@ class ServerNode:
                 if init == 1:
                     self.failure_detector.start_monitoring(self.connection_manager)
                     init = 0
+                self.failure_detector.check_timeouts(self.connection_manager)
                 if timeit.default_timer() - start > self.failure_detector.PERIOD:
                     self.failure_detector.send_heartbeat(self.connection_manager, self.metadata_store)
                     start = timeit.default_timer()
@@ -193,7 +193,8 @@ class ServerNode:
         # Only higher-ID server connects to solve win10013 error
         #if str(self.server_id) < str(msg.sender_id):
         #    return
-        
+
+        self.state = ServerState.LOOKING
         print(f"[Server {self.server_id}] discovered peer server {msg.sender_id}")
 
         try:
@@ -217,10 +218,18 @@ class ServerNode:
 
             join_msg = Message(
                 type=MessageType.SERVER_JOIN,
+                content= str(len(self.connection_manager.active_connections_peer_to_peer)),
                 sender_id=self.server_id,
             )
+
+            print("Ring size actually ", len(self.connection_manager.active_connections_peer_to_peer))
             conn.send(join_msg)
-            #self.connection_manager.listen_to_connection(conn, self.process_message)
+
+            self.connection_manager.listen_to_connection(conn, self.process_message)
+
+            while (self.goAhead == False):
+                a = 1
+            self.goAhead = False
 
             self._recompute_ring()
             #time.sleep(1)
@@ -267,9 +276,19 @@ class ServerNode:
                 self._handle_client_join(msg, conn)
 
             elif msg.type == MessageType.SERVER_JOIN:
+                self.state = ServerState.LOOKING
                 self._handle_server_join(msg, conn)
-                self._recompute_ring()
-                self.election_module.start_election(self.connection_manager)
+                self.receivedDiscoveryResponses = self.receivedDiscoveryResponses + 1
+                print('Received Ring size ', str(msg.content))
+                if self.receivedDiscoveryResponses >= int(msg.content):
+                    print("Ring Actually done")
+                    self.receivedDiscoveryResponses = 0
+                    GoAhead = Message(type = MessageType.RING_STABILIZED, sender_id = self.server_id)
+                    for i in self.connection_manager.active_connections_peer_to_peer.keys():
+                        self.connection_manager.send_to_node(i,GoAhead)
+                    self._recompute_ring()
+                    #time.sleep(2)
+                    self.election_module.start_election(self.connection_manager)
         
         except Exception as e:
             print(f"[Server {self.server_id}] join error:", e)
@@ -379,12 +398,18 @@ class ServerNode:
 
 
     def update_neighbour_id(self, msg: Message):
-        if msg.sender_id == self.left_neighbor.id:
-            self.left_neighbor.id = msg.content
-            print('Updated my left to ', msg.content)
-        elif msg.sender_id == self.right_neighbor.id:
-            self.right_neighbor.id = msg.content
-            print('Updated my right to ', msg.content)
+        con = msg.content.split()
+        #print(con)
+        command = con[0]
+        id = con[1]
+        if command == 'left':
+            self.left_neighbor.id = int(id)
+            print('Updated my left to ', id)
+        elif command == 'right':
+            self.right_neighbor.id = int(id)
+            print('Updated my right to ', id)
+        self.state = ServerState.ELECTION_IN_PROGRESS
+        time.sleep(0.1)
         self.state = ServerState.FOLLOWER
 
     def process_message(self, msg: Message):
@@ -417,6 +442,10 @@ class ServerNode:
 
             case MessageType.METADATA_UPDATE:
                 self.metadata_store.handle_message(msg, self.connection_manager)
+
+            case MessageType.RING_STABILIZED:
+                print('Received Go Ahead')
+                self.goAhead = True
 
             case _:
                 print(
