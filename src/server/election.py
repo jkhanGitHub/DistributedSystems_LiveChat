@@ -53,7 +53,7 @@ class ElectionModule:
                 elif message.sender_id == me.right_neighbor.id:
                     ConnectionManagerObject.send_to_node(me.right_neighbor.id, m)"""
                 ConnectionManagerObject.send_to_node(dec['mid'], m)
-                print('Sending reply for ' +str(dec['mid']) + ' back to ' +  str(message.sender_id))
+                #print('Sending reply for ' +str(dec['mid']) + ' back to ' +  str(message.sender_id))
             elif me.server_id == dec['mid']:
                 if me.leader_id != me.server_id:
                     m = self.ConstructLeaderAnnouncementMessage(me.server_id)
@@ -63,7 +63,7 @@ class ElectionModule:
                         if i != int(me.server_id):
                             ConnectionManagerObject.active_connections_peer_to_peer[i].send(m)
                             print(i)
-                    print('I am leader')
+                    print('I AM THE LEADER NOW')
                     me.state = ServerState.LEADER
 
                     #Remove self from the ring
