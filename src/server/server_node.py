@@ -30,6 +30,10 @@ class ServerNode:
         self.ip_address = self._get_local_ip() # It was "127.0.0.1" force_loopback=True
         self.port = port
         self.servers: Dict[str, Dict] = {} # server_id -> {ip, port}
+        self.servers[self.server_id] = {
+            "ip": self.ip_address,
+            "port": self.port,
+        }
         self.ring = []
         self.number_of_rooms = number_of_rooms
 
