@@ -34,7 +34,7 @@ class FailureDetector:
                 print('Sent heartbeats to neighbors')
             else:
                 for i in ConnectionManagerObject.active_connections_peer_to_peer.keys():
-                    if i != int(me.leader_id):
+                    if i != me.leader_id:
                         ConnectionManagerObject.active_connections_peer_to_peer[i].send(m)
                         #MetadataStoreObject.sync_with_leader(ConnectionManagerObject.active_connections_peer_to_peer[i], me.server_id, ConnectionManagerObject)
                         print('Sent heartbeats to every node')
@@ -90,10 +90,10 @@ class FailureDetector:
     def on_failure_detected(self, typeid, ConnectionManagerObject):
         me = self.Node
         type = typeid[0]
-        id = int(typeid[1])
+        id = typeid[1]
         #self.timers.pop(typeid, None)
         if type == 'server':
-            if id == int(me.leader_id):
+            if id == me.leader_id:
                 #spawn a new process here. So that there is failure detection during elections
                 #Test them individually first. Then make it concurrent
                 if id in ConnectionManagerObject.active_connections_peer_to_peer.keys():
@@ -111,15 +111,15 @@ class FailureDetector:
                     if me.state == ServerState.LEADER:
                         print("Sending update neighbor command")
                         crashed = me.ring.index(id)
-                        if int(me.leader_id) in me.ring:
-                            me.ring.remove(int(me.leader_id))
+                        if me.leader_id in me.ring:
+                            me.ring.remove(me.leader_id)
                         leftOfCrashed = me.ring[((crashed + 1)%len(me.ring))]
                         rightOfCrashed = me.ring[((crashed - 1)%len(me.ring))]
                         print('The left and right of crashed are ' + str(leftOfCrashed) + ' ' + str(rightOfCrashed))
                         right = Message(content = 'left ' + str(leftOfCrashed),sender_id = me.server_id, type = MessageType.UPDATE_NEIGHBOUR)
                         left = Message(content = 'right ' + str(rightOfCrashed),sender_id = me.server_id, type = MessageType.UPDATE_NEIGHBOUR)
-                        ConnectionManagerObject.send_to_node(int(rightOfCrashed), right)
-                        ConnectionManagerObject.send_to_node(int(leftOfCrashed), left)
+                        ConnectionManagerObject.send_to_node(rightOfCrashed, right)
+                        ConnectionManagerObject.send_to_node(leftOfCrashed, left)
                     """me._recompute_ring()
                     me.election_module.start_election(ConnectionManagerObject)"""
                     """
