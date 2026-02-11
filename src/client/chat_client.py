@@ -137,6 +137,7 @@ class ChatClient:
             room_id=room_id,
         )
         self.server_connection.send(join_room_msg)
+        self.send_message("joined room ", self.client_id)
 
     def send_message(self, content: str, room_id: str):
         # Send a chat message.
