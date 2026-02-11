@@ -115,7 +115,11 @@ class ChatClient:
 
         self.start(ip, port)
         self.join_room(room_id)
-        self.current_room = room_id
+
+        if room_id is not None:
+            pass
+        else:
+            self.current_room = room_id
         print(f"[Client {self.client_id}] joined room {room_id}")
 
 
@@ -157,9 +161,14 @@ class ChatClient:
             except:
                 print("[Client] Not connected, Message not sent")
                 self.client_clock.decrement(self.client_id)
+                self.server_connection.close()
+                self.handle_server_crash(server_id)
+        #else case should never happen
         else:
             print("[Client] Not connected, Message not sent")
             self.client_clock.decrement(self.client_id)
+            self.server_connection.close()
+            self.handle_server_crash(server_id)
 
     # Receive
     def receive_message(self, msg: Message):
@@ -169,3 +178,6 @@ class ChatClient:
             f"[Room {msg.room_id}] "
             f"[Client {msg.sender_id}]: {msg.content}" 
         )
+
+    def handle_server_crash(self, server_id: str):
+        self.discover_server(DISCOVERY_PORT, self.current_room)
