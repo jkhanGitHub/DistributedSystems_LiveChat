@@ -37,7 +37,7 @@ class ElectionModule:
         if dec['type'] == 'Election':
             print('received election from ', dec['mid'])
             print('Election params d , k', (dec['d'],dec['k']))
-            if me.server_id < dec['mid'] and dec['d'] < 2**dec['k']:
+            if int(me.server_id) < int(dec['mid']) and dec['d'] < 2**dec['k']:
                 m = self.ConstructElectionMessage(dec['mid'], dec['k'], dec['d'] + 1)
                 #Send it forward
                 if message.sender_id == me.right_neighbor.id:
@@ -45,7 +45,7 @@ class ElectionModule:
                 elif message.sender_id == me.left_neighbor.id:
                     ConnectionManagerObject.send_to_node(me.right_neighbor.id, m)
                 print('Sending it forward for ' + str(dec['mid']) + ' with k ' + str(dec['k']))
-            elif me.server_id < dec['mid'] and dec['d'] == 2**dec['k']:
+            elif int(me.server_id) < int(dec['mid']) and dec['d'] == 2**dec['k']:
                 m = self.ConstructReplyMessage(dec['mid'], dec['k'])
                 #Send it back
                 """if message.sender_id == me.left_neighbor.id:
