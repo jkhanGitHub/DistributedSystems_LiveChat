@@ -180,4 +180,4 @@ class ChatClient:
         )
 
     def handle_server_crash(self, server_id: str):
-        self.discover_server(DISCOVERY_PORT, self.current_room)
+        self.discover_server(DISCOVERY_PORT)
