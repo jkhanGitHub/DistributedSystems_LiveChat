@@ -100,6 +100,10 @@ class ElectionModule:
             for i in ConnectionManagerObject.active_connections_peer_to_peer.keys():
                 print(i)
             me.state = ServerState.FOLLOWER
+            #Sync with leader for rooms
+            #for peer_id, conn in ConnectionManagerObject.active_connections_peer_to_peer.items():
+            #    me.metadata_store.sync_with_leader(conn, me.server_id, ConnectionManagerObject)
+
 
 
 

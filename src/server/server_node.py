@@ -209,6 +209,11 @@ class ServerNode:
             peer_ip = data["ip"]
             peer_port = data["port"]
 
+            self.servers[msg.sender_id] = {
+                "ip": peer_ip,
+                "port": peer_port,
+            }
+
             conn = self.connection_manager.connect_to(peer_ip, peer_port)
 
             self.connection_manager.active_connections_peer_to_peer[msg.sender_id] = conn
@@ -305,9 +310,26 @@ class ServerNode:
         self.connection_manager.active_connections_peer_to_peer[msg.sender_id] = conn
         print(f"[Server {self.server_id}] peer joined: {msg.sender_id}")
 
+        self.servers[msg.sender_id] = {
+            "ip": conn.ip,
+            "port": conn.port,
+        }
+
         self.connection_manager.listen_to_connection(conn, self.process_message)
 
+        if self.state == ServerState.LEADER:
+            self.metadata_store.sync_with_leader(
+                conn,
+                self.server_id,
+                self.connection_manager
+            )
+
     def _send_rooms_to_client(self, addr):
+        print(
+            f"[Leader {self.server_id}] sending rooms:",
+            self.metadata_store.room_locations
+        )
+
         response = Message(
             type=MessageType.AVAILABLE_ROOMS,
             sender_id=self.server_id,
@@ -315,7 +337,9 @@ class ServerNode:
                 "rooms": self.metadata_store.room_locations,
                 "servers": self.servers,
             }),
+        
         )
+        print("GLOBAL METADATA:", self.metadata_store.room_locations)
 
         self.udp_handler.send_to(response, addr)
 
@@ -338,9 +362,17 @@ class ServerNode:
         if room_id not in self.managed_rooms:
             self.managed_rooms[room_id] = Room(host=self, room_id=room_id)
             print(f"[Server {self.server_id}] created room {room_id}")
-            # self.metadata_store.room_locations[room_id] = self.server_id
-            if self.leader_id is not None:
-                self.metadata_store.update_metadata(room_id, self, self.connection_manager)
+            self.metadata_store.room_locations[room_id] = self.server_id
+            #if self.leader_id is not None:
+            #    self.metadata_store.update_metadata(room_id, self, self.connection_manager)
+
+            # followers notify leader
+            if self.state != ServerState.LEADER and self.leader_id:
+                self.metadata_store.update_metadata(
+                    room_id,
+                    self,
+                    self.connection_manager
+                )
 
         return self.managed_rooms[room_id]
 

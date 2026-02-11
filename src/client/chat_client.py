@@ -109,9 +109,9 @@ class ChatClient:
         except (ValueError, IndexError):
             print("Invalid selection.")
             return
-
-        ip = servers[str(server_id)]["ip"]
-        port = servers[str(server_id)]["port"]
+        print(servers)
+        ip = servers[server_id]["ip"]
+        port = servers[server_id]["port"]
 
         self.start(ip, port)
         self.join_room(room_id)

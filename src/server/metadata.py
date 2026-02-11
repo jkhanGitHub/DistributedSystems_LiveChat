@@ -6,10 +6,10 @@ import ast
 import json
 import socket
 class MetadataStore:
-    room_locations = {}
+    #room_locations = {}
 
     def __init__(self, room_locations = {}):
-        self.room_locations = room_locations
+        self.room_locations = room_locations or {}
 
     #To be called by the process_message method if the message type is METADATA_UPDATE
     def handle_message(self,message, ConnectionManagerObject):
@@ -31,7 +31,8 @@ class MetadataStore:
         elif "Sync " in m:
             if "Room" in m:
                 m = m[9:]
-                self.room_locations = ast.literal_eval(m)
+                incoming = ast.literal_eval(m)
+                self.room_locations.update(incoming)
             elif "Connections" in m:
                 m = m[16:]
                 ConnectionManagerObject.active_connections_peer_to_peer = json.loads(m)
@@ -64,5 +65,5 @@ class MetadataStore:
     def sync_with_leader(self, peer, id, ConnectionManagerObject):
         m = Message(content = "Sync Room" + str(self.room_locations), sender_id = id, type = MessageType.METADATA_UPDATE)
         peer.send(m)
-        m = Message(content = "Sync Connections" + ConnectionManagerObject.stringify(), sender_id = id, type = MessageType.METADATA_UPDATE)
-        peer.send(m)
+        #m = Message(content = "Sync Connections" + ConnectionManagerObject.stringify(), sender_id = id, type = MessageType.METADATA_UPDATE)
+        #peer.send(m)
