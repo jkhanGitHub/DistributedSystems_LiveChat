@@ -179,5 +179,5 @@ class ChatClient:
             f"[Client {msg.sender_id}]: {msg.content}" 
         )
 
-    def handle_server_crash(self, server_id: str):
+    def handle_server_crash(self):
         self.discover_server(DISCOVERY_PORT)
