@@ -130,7 +130,7 @@ class ConnectionManager:
     # ---------- messaging ----------
 
     def send_to_node(self, node_id: str, msg: Message):
-        conn = self.active_connections_peer_to_peer.get(int(node_id))
+        conn = self.active_connections_peer_to_peer.get(node_id)
         if conn:
             conn.send(msg)
 
