@@ -30,13 +30,13 @@ class ElectionModule:
         dec = ast.literal_eval(stringlit)
         return dec
 
-    def handle_message(self, message, ConnectionManagerObject):
+    def handle_message(self, message, ConnectionManagerObject,MetadataStoreObject):
         dec = self.ParseMessage(message)
         me = self.Node
         #Convert it to switch case
         if dec['type'] == 'Election':
-            print('received election from ', dec['mid'])
-            print('Election params d , k', (dec['d'],dec['k']))
+            #print('received election from ', dec['mid'])
+            #print('Election params d , k', (dec['d'],dec['k']))
             if int(me.server_id) < int(dec['mid']) and dec['d'] < 2**dec['k']:
                 m = self.ConstructElectionMessage(dec['mid'], dec['k'], dec['d'] + 1)
                 #Send it forward
@@ -44,7 +44,7 @@ class ElectionModule:
                     ConnectionManagerObject.send_to_node(me.left_neighbor.id, m)
                 elif message.sender_id == me.left_neighbor.id:
                     ConnectionManagerObject.send_to_node(me.right_neighbor.id, m)
-                print('Sending it forward for ' + str(dec['mid']) + ' with k ' + str(dec['k']))
+                #print('Sending it forward for ' + str(dec['mid']) + ' with k ' + str(dec['k']))
             elif int(me.server_id) < int(dec['mid']) and dec['d'] == 2**dec['k']:
                 m = self.ConstructReplyMessage(dec['mid'], dec['k'])
                 #Send it back
@@ -76,15 +76,15 @@ class ElectionModule:
                     #To be handled in server_node
 
         elif dec['type'] == 'Reply':
-            print('received reply from ', message.sender_id)
-            print('Reply params d , k', (dec['d'],dec['k']))
+            #print('received reply from ', message.sender_id)
+            #print('Reply params d , k', (dec['d'],dec['k']))
             if me.server_id != dec['mid']:
                 if message.sender_id == me.right_neighbor.id:
                     ConnectionManagerObject.send_to_node(me.left_neighbor.id, message)
-                    print('Sending reply for ' +str(dec['mid']) + ' to ' +  str(me.left_neighbor.id,))
+                    #print('Sending reply for ' +str(dec['mid']) + ' to ' +  str(me.left_neighbor.id,))
                 elif message.sender_id == me.left_neighbor.id:
                     ConnectionManagerObject.send_to_node(me.right_neighbor.id, message)
-                    print('Sending reply for ' +str(dec['mid']) + ' to ' +  str(me.right_neighbor.id,))
+                    #print('Sending reply for ' +str(dec['mid']) + ' to ' +  str(me.right_neighbor.id,))
             else:
                 self.reply_counter += 1
                 if self.reply_counter == 2:
@@ -103,6 +103,9 @@ class ElectionModule:
             #Sync with leader for rooms
             #for peer_id, conn in ConnectionManagerObject.active_connections_peer_to_peer.items():
             #    me.metadata_store.sync_with_leader(conn, me.server_id, ConnectionManagerObject)
+            for i in MetadataStoreObject.room_locations.keys():
+                MetadataStoreObject.update_metadata(i, me)
+            print('sent my room locations')
 
 
 

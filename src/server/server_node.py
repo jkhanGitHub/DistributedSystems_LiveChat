@@ -66,6 +66,12 @@ class ServerNode:
         # TODO: create room through server prompt, for now this works.
         # create a room in each server with name being a random 4 char string
 
+        for i in range(self.number_of_rooms):
+            random_id = "".join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(4))
+            temp_room = self.create_room(random_id)
+            #add room to managed rooms
+            self.managed_rooms[random_id] = temp_room
+
     # lifecycle
     def start(self):
         self.run()
@@ -135,8 +141,8 @@ class ServerNode:
         t2 = threading.Thread(target=self.StartFailureDetection, daemon=True)
         t2.start()
 
-        t3 = threading.Thread(target=self.InitRoom, daemon=True)
-        t3.start()
+        #t3 = threading.Thread(target=self.InitRoom, daemon=True)
+        #t3.start()
         t1.join()
 
     # UDP handling
@@ -289,6 +295,7 @@ class ServerNode:
             conn = self.connection_manager.wrap_socket(
                 sock, ip=addr[0], port=addr[1]
             )
+            #print('Received address ' + str(addr[0]) + ' ' + str(addr[1]))
             msg = conn.receive()
 
             if msg.type == MessageType.CLIENT_JOIN:
@@ -318,14 +325,17 @@ class ServerNode:
 
         self.connection_manager.listen_to_connection(conn, self.process_message)
 
+        print(self.managed_rooms)
+        #self.failure_detector.start_monitoring_clients()
+
     def _handle_server_join(self, msg: Message, conn):
         self.connection_manager.active_connections_peer_to_peer[msg.sender_id] = conn
         print(f"[Server {self.server_id}] peer joined: {msg.sender_id}")
 
-        self.servers[msg.sender_id] = {
+        """self.servers[msg.sender_id] = {
             "ip": conn.ip,
             "port": conn.port,
-        }
+        }"""
 
         self.connection_manager.listen_to_connection(conn, self.process_message)
 
@@ -341,6 +351,12 @@ class ServerNode:
             f"[Leader {self.server_id}] sending rooms:",
             self.metadata_store.room_locations
         )
+
+        for i in self.connection_manager.active_connections_peer_to_peer.keys():
+            ip = self.connection_manager.active_connections_peer_to_peer[i].ip
+            port = self.connection_manager.active_connections_peer_to_peer[i].port
+            self.servers[i] = {'ip' : ip, 'port' : port}
+            print(self.connection_manager.active_connections_peer_to_peer[i].stringify())
 
         response = Message(
             type=MessageType.AVAILABLE_ROOMS,
@@ -382,8 +398,7 @@ class ServerNode:
             if self.state != ServerState.LEADER and self.leader_id:
                 self.metadata_store.update_metadata(
                     room_id,
-                    self,
-                    self.connection_manager
+                    self
                 )
 
         return self.managed_rooms[room_id]
@@ -439,6 +454,9 @@ class ServerNode:
                 "servers": self.servers,
             }),
         )
+        print('sending the following to the client')
+        print(self.metadata_store.room_locations)
+        print(self.servers)
 
         self.udp_handler.send_to(response, (client_ip, client_port))
 
@@ -471,7 +489,7 @@ class ServerNode:
                     )
 
             case MessageType.ELECTION:
-                self.election_module.handle_message(msg, self.connection_manager)
+                self.election_module.handle_message(msg, self.connection_manager, self.metadata_store)
 
             case MessageType.HEARTBEAT:
                 self.failure_detector.handle_heartbeat(msg)

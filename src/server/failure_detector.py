@@ -48,11 +48,6 @@ class FailureDetector:
     def start_monitoring(self, ConnectionManagerObject):
         me = self.Node
         self.timers = {}
-        #Start the monitoring for the clients
-        for i in me.managed_rooms.keys():
-            for j in me.managed_rooms[i].client_ids:
-                self.timers[('client',j)] = timeit.default_timer()
-
         #Start the monitoring for the servers
         if me.state != ServerState.LEADER:
             #Start the timers
@@ -70,6 +65,12 @@ class FailureDetector:
                     print('Starting timer for all others')
                     self.timers[('server',str(i))] = timeit.default_timer()
         print(self.timers)
+
+    def start_monitoring_clients():
+        #Start the monitoring for the clients
+        for i in me.managed_rooms.keys():
+            for j in me.managed_rooms[i].client_ids:
+                self.timers[('client',j)] = timeit.default_timer()
 
     #To be called whenever a heartbeat is received for a particular server
     def resetTimer(self, id, type):
