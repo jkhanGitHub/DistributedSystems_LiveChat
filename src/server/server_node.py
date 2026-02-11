@@ -29,9 +29,12 @@ class ServerNode:
         self.server_id = server_id
         self.ip_address = self._get_local_ip() # It was "127.0.0.1" force_loopback=True
         self.port = port
-
+        self.servers: Dict[str, Dict] = {} # server_id -> {ip, port}
         self.ring = []
         self.number_of_rooms = number_of_rooms
+
+        self.receivedDiscoveryResponses = 0
+        self.goAhead = False
 
         self.receivedDiscoveryResponses = 0
         self.goAhead = False
