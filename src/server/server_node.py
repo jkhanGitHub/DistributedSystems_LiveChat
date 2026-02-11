@@ -44,7 +44,7 @@ class ServerNode:
         # ring structure
         self.left_neighbor = RingNeighbor('0', '127.0.0.1', 5001)
         self.right_neighbor = RingNeighbor('0', '127.0.0.1', 5001)
-        
+
         # rooms
         self.managed_rooms: Dict[str, Room] = {}
 
@@ -112,15 +112,15 @@ class ServerNode:
                     self.handle_join(sock, addr)
                 except Exception as e:
                     print(f"[Server {self.server_id}] accept error:", e)
-        
+
         t1 = threading.Thread(target=acceptTCP, daemon=True)
         t1.start()
 
         t2 = threading.Thread(target=self.StartFailureDetection, daemon=True)
         t2.start()
         t1.join()
-    
-    # UDP handling 
+
+    # UDP handling
     def _handle_udp_message(self, msg: Message):
         if msg.type != MessageType.SERVER_DISCOVERY: # To reduce spam
             print(f"[Server {self.server_id}] UDP received {msg.type}")
@@ -184,12 +184,12 @@ class ServerNode:
 
     def _handle_server_discovery(self, msg: Message):
 
-        if msg.sender_id == self.server_id: # 
+        if msg.sender_id == self.server_id: #
             return
 
         if msg.sender_id in self.connection_manager.active_connections_peer_to_peer:
             return
-        
+
         # Only higher-ID server connects to solve win10013 error
         #if str(self.server_id) < str(msg.sender_id):
         #    return
@@ -201,11 +201,6 @@ class ServerNode:
             data = json.loads(msg.content)
             peer_ip = data["ip"]
             peer_port = data["port"]
-
-            self.servers[msg.sender_id] = {
-                "ip": peer_ip,
-                "port": peer_port,
-            }
 
             conn = self.connection_manager.connect_to(peer_ip, peer_port)
 
@@ -239,7 +234,7 @@ class ServerNode:
             print(f"[Server {self.server_id}] could not connect to peer:", e)
 
 
-    # client → server discovery 
+    # client → server discovery
 
     def _handle_client_discovery(self, msg: Message):
         print(f"[Server {self.server_id}] client discovery from {msg.sender_id}")
@@ -289,7 +284,7 @@ class ServerNode:
                     self._recompute_ring()
                     #time.sleep(2)
                     self.election_module.start_election(self.connection_manager)
-        
+
         except Exception as e:
             print(f"[Server {self.server_id}] join error:", e)
 
@@ -403,10 +398,10 @@ class ServerNode:
         command = con[0]
         id = con[1]
         if command == 'left':
-            self.left_neighbor.id = int(id)
+            self.left_neighbor.id = id
             print('Updated my left to ', id)
         elif command == 'right':
-            self.right_neighbor.id = int(id)
+            self.right_neighbor.id = id
             print('Updated my right to ', id)
         self.state = ServerState.ELECTION_IN_PROGRESS
         time.sleep(0.1)
