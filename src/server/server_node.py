@@ -65,15 +65,22 @@ class ServerNode:
 
         # TODO: create room through server prompt, for now this works.
         # create a room in each server with name being a random 4 char string
-        for i in range(self.number_of_rooms):
-            random_id = "".join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(4))
-            temp_room = self.create_room(random_id)
-            #add room to managed rooms
-            self.managed_rooms[random_id] = temp_room
 
     # lifecycle
     def start(self):
         self.run()
+
+    def InitRoom(self):
+        init = False
+        while(init == False):
+            if self.leader_id != '0':
+                for i in range(self.number_of_rooms):
+                    random_id = "".join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(4))
+                    temp_room = self.create_room(random_id)
+                    #add room to managed rooms
+                    self.managed_rooms[random_id] = temp_room
+                    init = True
+
 
     def StartFailureDetection(self):
         start = 0
@@ -98,6 +105,8 @@ class ServerNode:
         tcp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         tcp_socket.bind(("0.0.0.0", self.port)) # It was self.ip_address
         tcp_socket.listen()
+
+
 
         print(
             f"[Server {self.server_id}] PID {os.getpid()} "
@@ -125,6 +134,9 @@ class ServerNode:
 
         t2 = threading.Thread(target=self.StartFailureDetection, daemon=True)
         t2.start()
+
+        t3 = threading.Thread(target=self.InitRoom, daemon=True)
+        t3.start()
         t1.join()
 
     # UDP handling
@@ -337,7 +349,7 @@ class ServerNode:
                 "rooms": self.metadata_store.room_locations,
                 "servers": self.servers,
             }),
-        
+
         )
         print("GLOBAL METADATA:", self.metadata_store.room_locations)
 
