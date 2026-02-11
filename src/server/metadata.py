@@ -49,7 +49,8 @@ class MetadataStore:
 
     #send the new room that is added to the leader
     #To be called when a new room is added by the server. Through Discovery.
-    def update_metadata(self, room_id, server, ConnectionManagerObject):
+    def update_metadata(self, room_id, server):
+        ConnectionManagerObject = server.connection_manager
         #Update within the server instance first. Will be also done redundantly with the sync_with_leader() function
         self.room_locations[room_id] = server.server_id
         if server.state != ServerState.LEADER:
